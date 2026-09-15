@@ -1,0 +1,314 @@
+import { Role } from '@prisma/client';
+
+export type Permission =
+  // Machines
+  | 'MACHINE_READ'
+  | 'MACHINE_CREATE'
+  | 'MACHINE_UPDATE'
+  | 'MACHINE_DELETE'
+  // Networks & VLANs
+  | 'NETWORK_READ'
+  | 'NETWORK_CREATE'
+  | 'NETWORK_UPDATE'
+  | 'NETWORK_DELETE'
+  // Ports
+  | 'PORT_READ'
+  | 'PORT_CREATE'
+  | 'PORT_UPDATE'
+  | 'PORT_DELETE'
+  // Services
+  | 'SERVICE_READ'
+  | 'SERVICE_CREATE'
+  | 'SERVICE_UPDATE'
+  | 'SERVICE_DELETE'
+  // Locations
+  | 'LOCATION_READ'
+  | 'LOCATION_CREATE'
+  | 'LOCATION_UPDATE'
+  | 'LOCATION_DELETE'
+  // Discovery Engine
+  | 'DISCOVERY_READ'
+  | 'DISCOVERY_RUN'
+  | 'DISCOVERY_IMPORT'
+  // Audit Logs / Changes
+  | 'CHANGE_READ'
+  // Users & Roles Management
+  | 'USER_READ'
+  | 'USER_CREATE'
+  | 'USER_UPDATE'
+  | 'USER_DELETE'
+  // System Settings
+  | 'SETTINGS_READ'
+  | 'SETTINGS_UPDATE'
+  // Realtime & Historical Metrics
+  | 'METRICS_READ'
+  | 'METRICS_CONFIG'
+  | 'MONITORING_UPDATE'
+  // Tags
+  | 'TAG_READ'
+  | 'TAG_CREATE'
+  | 'TAG_UPDATE'
+  | 'TAG_DELETE'
+  // IPAM Specialized
+  | 'IPAM_READ'
+  | 'IPAM_MANAGE'
+  | 'IPAM_IMPORT'
+  | 'IPAM_EXPORT'
+  // Topology Specialized (V7)
+  | 'TOPOLOGY_READ'
+  | 'TOPOLOGY_CREATE'
+  | 'TOPOLOGY_UPDATE'
+  | 'TOPOLOGY_DELETE'
+  | 'TOPOLOGY_EXPORT'
+  | 'TOPOLOGY_IMPORT'
+  // Asset Management & Hardware (V8)
+  | 'ASSET_READ'
+  | 'ASSET_CREATE'
+  | 'ASSET_UPDATE'
+  | 'ASSET_DELETE'
+  | 'ASSET_EXPORT'
+  | 'ASSET_IMPORT'
+  // Licenses & Security (V8)
+  | 'LICENSE_READ'
+  | 'LICENSE_MANAGE'
+  | 'LICENSE_REVEAL'
+  // Suppliers, Purchases & Warranties (V8)
+  | 'SUPPLIER_MANAGE'
+  | 'PURCHASE_MANAGE'
+  | 'WARRANTY_MANAGE'
+  | 'SOFTWARE_MANAGE'
+  // Operational Management (V9)
+  | 'TICKET_READ'
+  | 'TICKET_CREATE'
+  | 'TICKET_UPDATE'
+  | 'TICKET_DELETE'
+  | 'TICKET_EXPORT'
+  | 'SLA_READ'
+  | 'SLA_MANAGE'
+  | 'MAINTENANCE_READ'
+  | 'MAINTENANCE_MANAGE'
+  | 'MAINTENANCE_EXPORT'
+  | 'TASK_READ'
+  | 'TASK_MANAGE'
+  | 'CHANGE_MANAGE'
+  | 'CHANGE_APPROVE'
+  | 'CHANGE_EXPORT'
+  | 'RUNBOOK_READ'
+  | 'RUNBOOK_MANAGE'
+  | 'OPERATIONS_READ'
+  // AI & Intelligent Assistant (V10)
+  | 'AI_CHAT'
+  | 'AI_ANALYZE'
+  | 'AI_CONFIG'
+  // Automation & Workflows (V11)
+  | 'AUTOMATION_READ'
+  | 'AUTOMATION_EXECUTE'
+  | 'AUTOMATION_APPROVE'
+  | 'AUTOMATION_MANAGE'
+  | 'AGENT_READ'
+  | 'AGENT_MANAGE';
+
+export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
+  ADMIN: [
+    'MACHINE_READ',
+    'MACHINE_CREATE',
+    'MACHINE_UPDATE',
+    'MACHINE_DELETE',
+    'NETWORK_READ',
+    'NETWORK_CREATE',
+    'NETWORK_UPDATE',
+    'NETWORK_DELETE',
+    'PORT_READ',
+    'PORT_CREATE',
+    'PORT_UPDATE',
+    'PORT_DELETE',
+    'SERVICE_READ',
+    'SERVICE_CREATE',
+    'SERVICE_UPDATE',
+    'SERVICE_DELETE',
+    'LOCATION_READ',
+    'LOCATION_CREATE',
+    'LOCATION_UPDATE',
+    'LOCATION_DELETE',
+    'DISCOVERY_READ',
+    'DISCOVERY_RUN',
+    'DISCOVERY_IMPORT',
+    'CHANGE_READ',
+    'USER_READ',
+    'USER_CREATE',
+    'USER_UPDATE',
+    'USER_DELETE',
+    'SETTINGS_READ',
+    'SETTINGS_UPDATE',
+    'METRICS_READ',
+    'METRICS_CONFIG',
+    'MONITORING_UPDATE',
+    'TAG_READ',
+    'TAG_CREATE',
+    'TAG_UPDATE',
+    'TAG_DELETE',
+    'IPAM_READ',
+    'IPAM_MANAGE',
+    'IPAM_IMPORT',
+    'IPAM_EXPORT',
+    'TOPOLOGY_READ',
+    'TOPOLOGY_CREATE',
+    'TOPOLOGY_UPDATE',
+    'TOPOLOGY_DELETE',
+    'TOPOLOGY_EXPORT',
+    'TOPOLOGY_IMPORT',
+    'ASSET_READ',
+    'ASSET_CREATE',
+    'ASSET_UPDATE',
+    'ASSET_DELETE',
+    'ASSET_EXPORT',
+    'ASSET_IMPORT',
+    'LICENSE_READ',
+    'LICENSE_MANAGE',
+    'LICENSE_REVEAL',
+    'SUPPLIER_MANAGE',
+    'PURCHASE_MANAGE',
+    'WARRANTY_MANAGE',
+    'SOFTWARE_MANAGE',
+    // V9
+    'TICKET_READ',
+    'TICKET_CREATE',
+    'TICKET_UPDATE',
+    'TICKET_DELETE',
+    'TICKET_EXPORT',
+    'SLA_READ',
+    'SLA_MANAGE',
+    'MAINTENANCE_READ',
+    'MAINTENANCE_MANAGE',
+    'MAINTENANCE_EXPORT',
+    'TASK_READ',
+    'TASK_MANAGE',
+    'CHANGE_MANAGE',
+    'CHANGE_APPROVE',
+    'CHANGE_EXPORT',
+    'RUNBOOK_READ',
+    'RUNBOOK_MANAGE',
+    'OPERATIONS_READ',
+    // V10 AI
+    'AI_CHAT',
+    'AI_ANALYZE',
+    'AI_CONFIG',
+    // V11 Automation
+    'AUTOMATION_READ',
+    'AUTOMATION_EXECUTE',
+    'AUTOMATION_APPROVE',
+    'AUTOMATION_MANAGE',
+    'AGENT_READ',
+    'AGENT_MANAGE',
+  ],
+  TECHNICIAN: [
+    'MACHINE_READ',
+    'MACHINE_CREATE',
+    'MACHINE_UPDATE',
+    'NETWORK_READ',
+    'NETWORK_CREATE',
+    'NETWORK_UPDATE',
+    'PORT_READ',
+    'PORT_CREATE',
+    'PORT_UPDATE',
+    'SERVICE_READ',
+    'SERVICE_CREATE',
+    'SERVICE_UPDATE',
+    'LOCATION_READ',
+    'LOCATION_CREATE',
+    'LOCATION_UPDATE',
+    'DISCOVERY_READ',
+    'DISCOVERY_RUN',
+    'DISCOVERY_IMPORT',
+    'CHANGE_READ',
+    'SETTINGS_READ',
+    'METRICS_READ',
+    'METRICS_CONFIG',
+    'TAG_READ',
+    'TAG_CREATE',
+    'TAG_UPDATE',
+    'IPAM_READ',
+    'IPAM_MANAGE',
+    'IPAM_EXPORT',
+    'TOPOLOGY_READ',
+    'TOPOLOGY_CREATE',
+    'TOPOLOGY_UPDATE',
+    'TOPOLOGY_EXPORT',
+    'TOPOLOGY_IMPORT',
+    'ASSET_READ',
+    'ASSET_CREATE',
+    'ASSET_UPDATE',
+    'ASSET_EXPORT',
+    'ASSET_IMPORT',
+    'LICENSE_READ',
+    'LICENSE_MANAGE',
+    'SUPPLIER_MANAGE',
+    'PURCHASE_MANAGE',
+    'WARRANTY_MANAGE',
+    'SOFTWARE_MANAGE',
+    // V9
+    'TICKET_READ',
+    'TICKET_CREATE',
+    'TICKET_UPDATE',
+    'TICKET_EXPORT',
+    'SLA_READ',
+    'MAINTENANCE_READ',
+    'MAINTENANCE_MANAGE',
+    'MAINTENANCE_EXPORT',
+    'TASK_READ',
+    'TASK_MANAGE',
+    'CHANGE_MANAGE',
+    'CHANGE_EXPORT',
+    'RUNBOOK_READ',
+    'RUNBOOK_MANAGE',
+    'OPERATIONS_READ',
+    // V10 AI
+    'AI_CHAT',
+    'AI_ANALYZE',
+    // V11 Automation
+    'AUTOMATION_READ',
+    'AUTOMATION_EXECUTE',
+    'AGENT_READ',
+  ],
+  VIEWER: [
+    'MACHINE_READ',
+    'NETWORK_READ',
+    'PORT_READ',
+    'SERVICE_READ',
+    'LOCATION_READ',
+    'DISCOVERY_READ',
+    'CHANGE_READ',
+    'SETTINGS_READ',
+    'METRICS_READ',
+    'TAG_READ',
+    'IPAM_READ',
+    'TOPOLOGY_READ',
+    'TOPOLOGY_EXPORT',
+    'ASSET_READ',
+    'LICENSE_READ',
+    'ASSET_EXPORT',
+    // V9
+    'TICKET_READ',
+    'SLA_READ',
+    'MAINTENANCE_READ',
+    'TASK_READ',
+    'RUNBOOK_READ',
+    'OPERATIONS_READ',
+    // V10 AI
+    'AI_CHAT',
+    'AI_ANALYZE',
+    // V11 Automation
+    'AUTOMATION_READ',
+    'AGENT_READ',
+  ],
+};
+
+export function hasPermission(role: Role, permission: Permission): boolean {
+  const allowed = ROLE_PERMISSIONS[role];
+  if (!allowed) return false;
+  return allowed.includes(permission);
+}
+
+export function getRolePermissions(role: Role): Permission[] {
+  return ROLE_PERMISSIONS[role] || [];
+}

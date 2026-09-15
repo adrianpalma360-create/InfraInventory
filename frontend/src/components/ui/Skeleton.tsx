@@ -1,0 +1,24 @@
+import React from 'react';
+
+export const Skeleton: React.FC<{ className?: string }> = ({ className = 'h-4 w-full' }) => {
+  return <div className={`animate-pulse rounded bg-[#252D38]/60 ${className}`} />;
+};
+
+export const TableSkeleton: React.FC<{ rows?: number; cols?: number }> = ({ rows = 5, cols = 6 }) => {
+  return (
+    <div className="w-full space-y-3">
+      <div className="flex gap-4 pb-2 border-b border-[#252D38]">
+        {Array.from({ length: cols }).map((_, i) => (
+          <Skeleton key={i} className="h-4 flex-1" />
+        ))}
+      </div>
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} className="flex gap-4 py-3 border-b border-[#252D38]/40">
+          {Array.from({ length: cols }).map((_, c) => (
+            <Skeleton key={c} className="h-4 flex-1" />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+};

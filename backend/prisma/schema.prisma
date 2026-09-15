@@ -1,0 +1,2082 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MachineType {
+  PHYSICAL_SERVER
+  VIRTUAL_SERVER
+  PC
+  LAPTOP
+  ROUTER
+  SWITCH
+  FIREWALL
+  NAS
+  PRINTER
+  VM
+  OTHER
+}
+
+enum MachineStatus {
+  ONLINE
+  OFFLINE
+  WARNING
+  UNCHECKED
+}
+
+enum PortProtocol {
+  TCP
+  UDP
+}
+
+enum PortState {
+  OPEN
+  CLOSED
+  FILTERED
+}
+
+enum Role {
+  ADMIN
+  TECHNICIAN
+  VIEWER
+}
+
+enum ChangeAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum IPStatus {
+  FREE
+  ASSIGNED
+  RESERVED
+  DHCP
+  CONFLICT
+  UNKNOWN
+}
+
+enum LocationType {
+  COMPANY
+  OFFICE
+  DATACENTER
+  ROOM
+  RACK
+  WAREHOUSE
+  REMOTE
+  OTHER
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  username           String    @unique
+  name               String
+  email              String?   @unique
+  passwordHash       String
+  role               Role      @default(VIEWER)
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(false)
+  lastLogin          DateTime?
+  
+  licenseAssignments LicenseAssignment[]
+  createdTickets     Ticket[]            @relation("TicketCreator")
+  assignedTickets    Ticket[]            @relation("TicketAssignee")
+  requestedTickets   Ticket[]            @relation("TicketRequester")
+  ticketComments     TicketComment[]
+  ticketHistories    TicketHistory[]
+  maintenances       Maintenance[]       @relation("MaintenanceAssignee")
+  createdMaintenances Maintenance[]      @relation("MaintenanceCreator")
+  maintenanceWindows MaintenanceWindow[] @relation("WindowCreator")
+  tasks              Task[]              @relation("TaskAssignee")
+  requestedChanges   Change[]            @relation("ChangeRequester")
+  approvedChanges    Change[]            @relation("ChangeApprover")
+  executedChanges    Change[]            @relation("ChangeExecutor")
+  changeApprovals    ChangeApproval[]
+  createdRunbooks    Runbook[]           @relation("RunbookCreator")
+  updatedRunbooks    Runbook[]           @relation("RunbookUpdater")
+  aiConversations    AIConversation[]    @relation("UserAIConversations")
+  aiQueryLogs        AIQueryLog[]        @relation("UserAIQueryLogs")
+  
+  // V11 Automation relations
+  createdWorkflows        Workflow[]          @relation("WorkflowCreator")
+  createdWorkflowVersions WorkflowVersion[]   @relation("WorkflowVersionCreator")
+  executedWorkflowRuns    WorkflowRun[]       @relation("WorkflowRunExecutor")
+  requestedApprovals      ApprovalRequest[]   @relation("ApprovalRequester")
+  grantedApprovals        ApprovalRequest[]   @relation("ApprovalApprover")
+  aiActionProposals       AIActionProposal[]  @relation("UserAIProposals")
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("users")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model Location {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  description String?
+  type        LocationType @default(OTHER)
+  
+  parentId    String?
+  parent      Location?    @relation("LocationHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Location[]   @relation("LocationHierarchy")
+  
+  address     String?
+  city        String?
+  postalCode  String?
+  country     String?
+  building    String?
+  floor       String?
+  room        String?
+  rack        String?
+  
+  machines      Machine[]
+  networks      Network[]
+  vlans         VLAN[]
+  topologyNodes TopologyNode[]
+  assets        Asset[]
+  tickets       Ticket[]
+  maintenances  Maintenance[]
+  maintenanceWindows MaintenanceWindow[]
+  changes       Change[]
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([parentId])
+  @@index([type])
+  @@map("locations")
+}
+
+model Tag {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  color       String       @default("#06B6D4") // Hex color
+  description String?
+  
+  machines    MachineTag[]
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([name])
+  @@map("tags")
+}
+
+model MachineTag {
+  machineId String
+  machine   Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([machineId, tagId])
+  @@index([machineId])
+  @@index([tagId])
+  @@map("machine_tags")
+}
+
+model Network {
+  id               String      @id @default(uuid())
+  name             String
+  cidr             String      @unique
+  networkAddress   String?
+  broadcastAddress String?
+  gateway          String?
+  dns              String?
+  description      String?
+  
+  vlanId           String?
+  vlan             VLAN?       @relation("NetworkVlan", fields: [vlanId], references: [id], onDelete: SetNull)
+  vlans            VLAN[]      @relation("VlanPrimaryNetwork")
+  
+  locationId       String?
+  location         Location?   @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  
+  dhcpEnabled      Boolean     @default(false)
+  dhcpStart        String?
+  dhcpEnd          String?
+  
+  ipAddresses      IPAddress[]
+  topologyNodes    TopologyNode[]
+  
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([cidr])
+  @@index([vlanId])
+  @@index([locationId])
+  @@map("networks")
+}
+
+model VLAN {
+  id              String             @id @default(uuid())
+  vlanId          Int                @unique
+  name            String
+  description     String?
+  
+  networkId       String?
+  network         Network?           @relation("VlanPrimaryNetwork", fields: [networkId], references: [id], onDelete: SetNull)
+  networks        Network[]          @relation("NetworkVlan")
+  
+  locationId      String?
+  location        Location?          @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  
+  machines        Machine[]
+  interfaces      NetworkInterface[]
+  topologyNodes   TopologyNode[]
+  
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([vlanId])
+  @@index([networkId])
+  @@index([locationId])
+  @@map("vlans")
+}
+
+model Machine {
+  id           String             @id @default(uuid())
+  hostname     String             @unique
+  type         MachineType        @default(PHYSICAL_SERVER)
+  status       MachineStatus      @default(UNCHECKED)
+  os           String?
+  osVersion    String?
+  manufacturer String?
+  model        String?
+  serialNumber String?
+  description  String?
+  primaryIp    String?
+  macAddress   String?
+  gateway      String?
+  dns          String?
+  
+  group        String?            @default("Servidores")
+  
+  locationId   String?
+  location     Location?          @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  
+  vlanId       String?
+  vlan         VLAN?              @relation(fields: [vlanId], references: [id], onDelete: SetNull)
+  
+  tags         MachineTag[]
+  interfaces   NetworkInterface[]
+  ipAddresses  IPAddress[]
+  ports        Port[]
+  changeLogs   ChangeLog[]
+  topologyNodes TopologyNode[]
+  
+  assets             Asset[]
+  licenseAssignments LicenseAssignment[]
+  assetSoftwares     AssetSoftware[]
+  
+  lastDiscoveredAt  DateTime?
+  discoveryHosts    DiscoveryHost[]
+  discoveryChanges  DiscoveryChange[]
+
+  metricSamples     MetricSample[]
+  serviceChecks     ServiceCheck[]
+  metricAnomalies   MetricAnomaly[]
+  
+  tickets           Ticket[]
+  maintenances      Maintenance[]
+  maintenanceWindows MaintenanceWindow[]
+  changes           Change[]
+  
+  // V11 Automation
+  agents            Agent[]
+  workflowRunSteps  WorkflowRunStep[]
+
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([hostname])
+  @@index([primaryIp])
+  @@index([group])
+  @@index([locationId])
+  @@index([vlanId])
+  @@index([status])
+  @@map("machines")
+}
+
+model NetworkInterface {
+  id          String        @id @default(uuid())
+  name        String
+  macAddress  String?
+  speed       String?
+  status      String?       @default("UP")
+  description String?
+  
+  machineId   String
+  machine     Machine       @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  vlanId      String?
+  vlan        VLAN?         @relation(fields: [vlanId], references: [id], onDelete: SetNull)
+  
+  ipAddresses IPAddress[]
+  sourceTopologyEdges TopologyEdge[] @relation("SourceInterface")
+  targetTopologyEdges TopologyEdge[] @relation("TargetInterface")
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([machineId])
+  @@index([macAddress])
+  @@index([vlanId])
+  @@map("network_interfaces")
+}
+
+model IPAddress {
+  id          String            @id @default(uuid())
+  address     String            // IP string e.g. "192.168.1.50"
+  ip          String            // Alias column for backward-compatibility with V1-V5 code
+  version     String            @default("IPv4") // "IPv4" or "IPv6"
+  status      IPStatus          @default(FREE)
+  hostname    String?
+  macAddress  String?
+  description String?
+  isPrimary   Boolean           @default(false)
+  subnet      String?
+  
+  networkId   String?
+  network     Network?          @relation(fields: [networkId], references: [id], onDelete: SetNull)
+  
+  machineId   String?
+  machine     Machine?          @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  interfaceId String?
+  interface   NetworkInterface? @relation(fields: [interfaceId], references: [id], onDelete: Cascade)
+
+  lastChecked DateTime?
+
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([address, networkId])
+  @@index([address])
+  @@index([ip])
+  @@index([status])
+  @@index([networkId])
+  @@index([machineId])
+  @@index([interfaceId])
+  @@index([macAddress])
+  @@map("ip_addresses")
+}
+
+model Service {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  defaultPort Int?
+  protocol    String?  @default("TCP")
+  version     String?
+  description String?
+  ports       Port[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("services")
+}
+
+model Port {
+  id          String       @id @default(uuid())
+  portNumber  Int
+  protocol    PortProtocol @default(TCP)
+  state       PortState    @default(OPEN)
+  description String?
+  
+  machineId   String
+  machine     Machine      @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  serviceId   String?
+  service     Service?     @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([machineId, portNumber, protocol])
+  @@index([machineId])
+  @@index([portNumber])
+  @@map("ports")
+}
+
+model ChangeLog {
+  id         String       @id @default(uuid())
+  entityType String
+  entityId   String
+  action     ChangeAction
+  details    String
+  user       String       @default("system")
+  ipOrigin   String?
+  
+  machineId  String?
+  machine    Machine?     @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime     @default(now())
+
+  @@index([entityType, entityId])
+  @@index([machineId])
+  @@index([createdAt])
+  @@map("change_logs")
+}
+
+enum ScanType {
+  BASIC
+  FULL
+}
+
+enum ScanStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum HostStatus {
+  ONLINE
+  OFFLINE
+  UNRESPONSIVE
+}
+
+enum DiscoveryChangeType {
+  NEW_DEVICE
+  IP_CHANGED
+  NEW_PORT
+  PORT_CLOSED
+  SERVICE_MODIFIED
+  DEVICE_OFFLINE
+  DEVICE_NOT_DETECTED
+}
+
+enum DiscoveryChangeStatus {
+  PENDING
+  APPROVED
+  IGNORED
+  APPLIED
+}
+
+model DiscoveryScan {
+  id              String            @id @default(uuid())
+  networkCidr     String
+  scanType        ScanType          @default(BASIC)
+  status          ScanStatus        @default(PENDING)
+  progress        Int               @default(0)
+  totalHosts      Int               @default(0)
+  scannedHosts    Int               @default(0)
+  activeHosts     Int               @default(0)
+  newDevices      Int               @default(0)
+  changedDevices  Int               @default(0)
+  missingDevices  Int               @default(0)
+  startedAt       DateTime          @default(now())
+  completedAt     DateTime?
+  durationMs      Int?
+  errorMessage    String?
+  
+  hosts           DiscoveryHost[]
+  changes         DiscoveryChange[]
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@map("discovery_scans")
+}
+
+model DiscoveryHost {
+  id                String            @id @default(uuid())
+  scanId            String
+  scan              DiscoveryScan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  
+  ip                String
+  macAddress        String?
+  hostname          String?
+  vendor            String?
+  osGuess           String?
+  status            HostStatus        @default(ONLINE)
+  responseTimeMs    Int?
+  isNew             Boolean           @default(false)
+  
+  matchedMachineId  String?
+  matchedMachine    Machine?          @relation(fields: [matchedMachineId], references: [id], onDelete: SetNull)
+  
+  ports             DiscoveredPort[]
+  
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@map("discovery_hosts")
+}
+
+model DiscoveredPort {
+  id          String         @id @default(uuid())
+  hostId      String
+  host        DiscoveryHost  @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  
+  portNumber  Int
+  protocol    PortProtocol   @default(TCP)
+  state       PortState      @default(OPEN)
+  serviceName String?
+  banner      String?
+  
+  createdAt   DateTime       @default(now())
+
+  @@map("discovered_ports")
+}
+
+model DiscoveryChange {
+  id          String                 @id @default(uuid())
+  scanId      String
+  scan        DiscoveryScan          @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  
+  changeType  DiscoveryChangeType
+  status      DiscoveryChangeStatus  @default(PENDING)
+  
+  ip          String
+  hostname    String?
+  
+  machineId   String?
+  machine     Machine?               @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  details     String
+  oldValue    String?
+  newValue    String?
+  
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@map("discovery_changes")
+}
+
+enum HealthState {
+  HEALTHY
+  WARNING
+  DEGRADED
+  CRITICAL
+  UNKNOWN
+}
+
+model MetricSample {
+  id                 String       @id @default(uuid())
+  machineId          String
+  machine            Machine      @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  cpuUsage           Float?
+  ramUsage           Float?
+  diskUsage          Float?
+  networkRxKbps      Float?
+  networkTxKbps      Float?
+  networkErrors      Int?         @default(0)
+  latencyMs          Float?
+  responseTimeMs     Float?
+  errorRate          Float?       @default(0)
+  activeConnections  Int?         @default(0)
+  healthState        HealthState  @default(HEALTHY)
+  
+  timestamp          DateTime     @default(now())
+
+  @@index([machineId, timestamp])
+  @@index([timestamp])
+  @@map("metric_samples")
+}
+
+model ServiceCheck {
+  id              String       @id @default(uuid())
+  machineId       String
+  machine         Machine      @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  serviceName     String
+  portNumber      Int
+  protocol        PortProtocol @default(TCP)
+  status          HealthState  @default(HEALTHY)
+  latencyMs       Float?
+  responseTimeMs  Float?
+  errorRate       Float?       @default(0)
+  details         String?
+  lastChecked     DateTime     @default(now())
+
+  @@unique([machineId, portNumber, protocol])
+  @@index([machineId])
+  @@map("service_checks")
+}
+
+model MetricAnomaly {
+  id                 String       @id @default(uuid())
+  machineId          String
+  machine            Machine      @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  metricType         String       // LATENCY, RESPONSE_TIME, CPU, RAM, ERROR_RATE, CONNECTIONS
+  currentValue       Float
+  expectedMean       Float
+  standardDeviation  Float
+  severity           String       @default("WARNING") // WARNING, CRITICAL
+  message            String
+  isResolved         Boolean      @default(false)
+  isSuppressed       Boolean      @default(false)
+  suppressedReason   String?
+  detectedAt         DateTime     @default(now())
+  resolvedAt         DateTime?
+  
+  tickets            Ticket[]
+
+  @@index([machineId, isResolved])
+  @@index([detectedAt])
+  @@map("metric_anomalies")
+}
+
+model MonitoringConfig {
+  id                     String    @id @default(uuid())
+  checkIntervalSec       Int       @default(30) // 30s, 60s, 300s
+  retentionDays          Int       @default(30)
+  enableAnomalies        Boolean   @default(true)
+  thresholdCpuWarn       Float     @default(80)
+  thresholdCpuCrit       Float     @default(90)
+  thresholdRamWarn       Float     @default(85)
+  thresholdRamCrit       Float     @default(95)
+  thresholdDiskWarn      Float     @default(85)
+  thresholdDiskCrit      Float     @default(95)
+  thresholdLatencyWarn   Float     @default(100)
+  thresholdLatencyCrit   Float     @default(300)
+  updatedAt              DateTime  @updatedAt
+
+  @@map("monitoring_configs")
+}
+
+// ====================================================
+// V7 TOPOLOGY & INFRASTRUCTURE MAP MODELS
+// ====================================================
+
+enum TopologyNodeType {
+  INTERNET
+  ROUTER
+  FIREWALL
+  SWITCH
+  ACCESS_POINT
+  SERVER
+  WORKSTATION
+  NAS
+  VM
+  CONTAINER
+  NETWORK
+  VLAN
+  PRINTER
+  STORAGE
+  UPS
+  PHONE
+  OTHER
+}
+
+enum TopologyConnectionType {
+  ETHERNET
+  FIBER
+  WIFI
+  VPN
+  VLAN
+  LOGICAL
+  OTHER
+}
+
+model Topology {
+  id          String         @id @default(uuid())
+  name        String
+  description String?
+  
+  groupId     String?        // Filter/scope by Group
+  locationId  String?        // Filter/scope by Location
+  tagId       String?        // Filter/scope by Tag
+  isDefault   Boolean        @default(false)
+  metadata    Json?
+  
+  nodes       TopologyNode[]
+  edges       TopologyEdge[]
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([groupId])
+  @@index([locationId])
+  @@index([tagId])
+  @@map("topologies")
+}
+
+model TopologyNode {
+  id             String            @id @default(uuid())
+  topologyId     String
+  topology       Topology          @relation(fields: [topologyId], references: [id], onDelete: Cascade)
+  
+  nodeType       TopologyNodeType  @default(SERVER)
+  label          String
+  positionX      Float             @default(0)
+  positionY      Float             @default(0)
+  
+  machineId      String?
+  machine        Machine?          @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  
+  networkId      String?
+  network        Network?          @relation(fields: [networkId], references: [id], onDelete: SetNull)
+  
+  vlanId         String?
+  vlan           VLAN?             @relation(fields: [vlanId], references: [id], onDelete: SetNull)
+  
+  locationId     String?
+  location       Location?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  
+  customIcon     String?
+  statusOverride String?
+  metadata       Json?
+  
+  sourceEdges    TopologyEdge[]    @relation("SourceNode")
+  targetEdges    TopologyEdge[]    @relation("TargetNode")
+  
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([topologyId])
+  @@index([machineId])
+  @@index([networkId])
+  @@index([vlanId])
+  @@index([locationId])
+  @@map("topology_nodes")
+}
+
+model TopologyEdge {
+  id                 String                 @id @default(uuid())
+  topologyId         String
+  topology           Topology               @relation(fields: [topologyId], references: [id], onDelete: Cascade)
+  
+  sourceNodeId       String
+  sourceNode         TopologyNode           @relation("SourceNode", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+  
+  targetNodeId       String
+  targetNode         TopologyNode           @relation("TargetNode", fields: [targetNodeId], references: [id], onDelete: Cascade)
+  
+  connectionType     TopologyConnectionType @default(ETHERNET)
+  label              String?
+  
+  sourceInterfaceId  String?
+  sourceInterface    NetworkInterface?      @relation("SourceInterface", fields: [sourceInterfaceId], references: [id], onDelete: SetNull)
+  
+  targetInterfaceId  String?
+  targetInterface    NetworkInterface?      @relation("TargetInterface", fields: [targetInterfaceId], references: [id], onDelete: SetNull)
+  
+  speed              String?
+  status             String?                @default("ACTIVE")
+  metadata           Json?
+  
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@index([topologyId])
+  @@index([sourceNodeId])
+  @@index([targetNodeId])
+  @@map("topology_edges")
+}
+
+// ====================================================
+// V8 IT ASSET MANAGEMENT, HARDWARE, WARRANTIES & LICENSES
+// ====================================================
+
+enum AssetType {
+  SERVER
+  DESKTOP
+  LAPTOP
+  NETWORK
+  FIREWALL
+  ROUTER
+  SWITCH
+  ACCESS_POINT
+  NAS
+  STORAGE
+  PRINTER
+  UPS
+  PHONE
+  TABLET
+  MONITOR
+  VM
+  LICENSE
+  SOFTWARE
+  OTHER
+}
+
+enum AssetStatus {
+  PLANNED
+  ORDERED
+  RECEIVED
+  ACTIVE
+  MAINTENANCE
+  RETIRED
+  LOST
+  DISPOSED
+}
+
+enum HardwareComponentType {
+  CPU
+  RAM
+  DISK
+  GPU
+  NIC
+  RAID
+  PSU
+  MOTHERBOARD
+  OTHER
+}
+
+enum DiskHealthStatus {
+  HEALTHY
+  WARNING
+  FAILED
+  UNKNOWN
+}
+
+enum WarrantyType {
+  STANDARD
+  EXTENDED
+  SUPPORT
+  ONSITE
+  OTHER
+}
+
+enum LicenseType {
+  PERPETUAL
+  SUBSCRIPTION
+  OEM
+  OPEN_SOURCE
+  TRIAL
+  OTHER
+}
+
+model Supplier {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  taxId       String?    // CIF / NIF / VAT ID
+  contact     String?
+  email       String?
+  phone       String?
+  website     String?
+  address     String?
+  notes       String?
+  
+  assets      Asset[]
+  purchases   Purchase[]
+  warranties  Warranty[]
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([name])
+  @@map("suppliers")
+}
+
+model Purchase {
+  id            String         @id @default(uuid())
+  supplierId    String?
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  
+  invoiceNumber String?
+  purchaseDate  DateTime?
+  total         Float          @default(0)
+  currency      String         @default("EUR")
+  notes         String?
+  
+  items         PurchaseItem[]
+  
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([supplierId])
+  @@index([invoiceNumber])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id          String    @id @default(uuid())
+  purchaseId  String
+  purchase    Purchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  
+  assetId     String?
+  asset       Asset?    @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  
+  description String
+  quantity    Int       @default(1)
+  unitPrice   Float     @default(0)
+  totalPrice  Float     @default(0)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([purchaseId])
+  @@index([assetId])
+  @@map("purchase_items")
+}
+
+model Asset {
+  id                  String               @id @default(uuid())
+  assetTag            String               @unique // e.g. "AST-0001"
+  name                String
+  description         String?
+  assetType           AssetType            @default(SERVER)
+  status              AssetStatus          @default(ACTIVE)
+  serialNumber        String?
+  manufacturer        String?
+  model               String?
+  
+  purchaseDate        DateTime?
+  purchasePrice       Float?
+  currency            String               @default("EUR")
+  invoiceNumber       String?
+  warrantyStart       DateTime?
+  warrantyEnd         DateTime?
+  
+  rackUnit            Int?                 // U position in Rack (e.g. 1..42)
+  notes               String?
+  metadata            Json?
+  
+  supplierId          String?
+  supplier            Supplier?            @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  
+  locationId          String?
+  location            Location?            @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  
+  machineId           String?
+  machine             Machine?             @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  
+  history             AssetHistory[]
+  hardware            HardwareComponent[]
+  warranties          Warranty[]
+  purchaseItems       PurchaseItem[]
+  licenseAssignments LicenseAssignment[]
+  assetSoftwares      AssetSoftware[]
+  documents           AssetDocument[]
+  tickets             Ticket[]
+  maintenances        Maintenance[]
+  changes             Change[]
+  
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([assetTag])
+  @@index([assetType])
+  @@index([status])
+  @@index([supplierId])
+  @@index([locationId])
+  @@index([machineId])
+  @@map("assets")
+}
+
+model AssetHistory {
+  id            String    @id @default(uuid())
+  assetId       String
+  asset         Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  action        String    // CREATE, STATUS_CHANGE, LOCATION_CHANGE, MAINTENANCE, REPAIR, ASSIGNMENT, RETIRED, DISPOSED
+  description   String
+  previousValue String?
+  newValue      String?
+  userId        String?
+  user          String    @default("admin")
+  
+  createdAt     DateTime  @default(now())
+
+  @@index([assetId])
+  @@index([createdAt])
+  @@map("asset_history")
+}
+
+model HardwareComponent {
+  id           String                @id @default(uuid())
+  assetId      String
+  asset        Asset                 @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  type         HardwareComponentType
+  manufacturer String?
+  model        String?
+  serialNumber String?
+  capacity     String?               // e.g. "32", "2TB", "16"
+  unit         String?               // e.g. "GB", "TB", "Cores", "Watts"
+  quantity     Int                   @default(1)
+  diskType     String?               // e.g. "NVMe", "SSD", "HDD", "SAS", "SATA"
+  diskHealth   DiskHealthStatus?     @default(HEALTHY)
+  description  String?
+  
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@index([assetId])
+  @@index([type])
+  @@map("hardware_components")
+}
+
+model Warranty {
+  id             String       @id @default(uuid())
+  assetId        String
+  asset          Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  supplierId     String?
+  supplier       Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  
+  provider       String
+  contractNumber String?
+  startDate      DateTime
+  endDate        DateTime
+  type           WarrantyType @default(STANDARD)
+  notes          String?
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([assetId])
+  @@index([supplierId])
+  @@index([endDate])
+  @@map("warranties")
+}
+
+model License {
+  id                  String              @id @default(uuid())
+  name                String
+  vendor              String
+  product             String
+  version             String?
+  licenseType         LicenseType         @default(PERPETUAL)
+  licenseKeyEncrypted String?             // AES-256 encrypted string
+  seats               Int                 @default(1)
+  usedSeats           Int                 @default(0)
+  purchaseDate        DateTime?
+  expirationDate      DateTime?
+  renewalCost         Float?
+  currency            String              @default("EUR")
+  notes               String?
+  
+  assignments         LicenseAssignment[]
+  
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([name])
+  @@index([vendor])
+  @@index([expirationDate])
+  @@map("licenses")
+}
+
+model LicenseAssignment {
+  id          String    @id @default(uuid())
+  licenseId   String
+  license     License   @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  
+  assetId     String?
+  asset       Asset?    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  machineId   String?
+  machine     Machine?  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  assignedAt  DateTime  @default(now())
+  notes       String?
+
+  @@index([licenseId])
+  @@index([assetId])
+  @@index([machineId])
+  @@index([userId])
+  @@map("license_assignments")
+}
+
+model Software {
+  id             String          @id @default(uuid())
+  name           String
+  vendor         String?
+  version        String?
+  category       String?
+  description    String?
+  
+  assetSoftwares AssetSoftware[]
+  
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([name])
+  @@map("software")
+}
+
+model AssetSoftware {
+  id               String    @id @default(uuid())
+  softwareId       String
+  software         Software  @relation(fields: [softwareId], references: [id], onDelete: Cascade)
+  
+  assetId          String?
+  asset            Asset?    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  machineId        String?
+  machine          Machine?  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  installedVersion String?
+  installedAt      DateTime  @default(now())
+
+  @@index([softwareId])
+  @@index([assetId])
+  @@index([machineId])
+  @@map("asset_software")
+}
+
+model AssetDocument {
+  id           String    @id @default(uuid())
+  assetId      String
+  asset        Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  name         String
+  fileType     String
+  fileSize     Int
+  filePath     String
+  documentType String    @default("DOCUMENT") // INVOICE, CONTRACT, WARRANTY, MANUAL, CERTIFICATE, PHOTO
+  uploadedById String?
+  
+  createdAt    DateTime  @default(now())
+
+  @@index([assetId])
+  @@map("asset_documents")
+}
+
+// ====================================================
+// V9 OPERATIONAL MANAGEMENT, TICKETS, MAINTENANCE, SLA, CHANGES & RUNBOOKS
+// ====================================================
+
+enum TicketType {
+  INCIDENT
+  REQUEST
+  TASK
+  MAINTENANCE
+  CHANGE
+  QUESTION
+  OTHER
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+  CRITICAL
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING
+  WAITING
+  RESOLVED
+  CLOSED
+  CANCELLED
+}
+
+enum SlaStatus {
+  ON_TRACK
+  WARNING
+  BREACHED
+  PAUSED
+}
+
+enum MaintenanceType {
+  PREVENTIVE
+  CORRECTIVE
+  SCHEDULED
+  EMERGENCY
+}
+
+enum MaintenanceStatus {
+  PLANNED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
+enum ChangeRisk {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ChangeImpact {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ChangeStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  ROLLED_BACK
+  CANCELLED
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+  PENDING
+}
+
+model SLA {
+  id                     String         @id @default(uuid())
+  name                   String         @unique
+  description            String?
+  responseTimeMinutes    Int            @default(60) // Target first response time
+  resolutionTimeMinutes  Int            @default(480) // Target resolution time (8 hours default)
+  priority               TicketPriority @default(NORMAL)
+  enabled                Boolean        @default(true)
+  businessHoursOnly      Boolean        @default(false)
+  businessHoursStart     String?        @default("08:00")
+  businessHoursEnd       String?        @default("18:00")
+  
+  tickets                Ticket[]
+  
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  @@index([priority])
+  @@index([enabled])
+  @@map("slas")
+}
+
+model TicketSequence {
+  id         String   @id @default(uuid())
+  prefix     String   @unique @default("TCK")
+  lastNumber Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@map("ticket_sequences")
+}
+
+model Ticket {
+  id              String         @id @default(uuid())
+  ticketNumber    String         @unique // e.g. "TCK-000001" or "INC-000001"
+  title           String
+  description     String
+  type            TicketType     @default(INCIDENT)
+  priority        TicketPriority @default(NORMAL)
+  status          TicketStatus   @default(OPEN)
+  
+  createdById     String?
+  creator         User?          @relation("TicketCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  
+  assignedToId    String?
+  assignee        User?          @relation("TicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  
+  requesterId     String?
+  requester       User?          @relation("TicketRequester", fields: [requesterId], references: [id], onDelete: SetNull)
+  requesterEmail  String?
+  
+  // Relations to Infrastructure & Assets
+  assetId         String?
+  asset           Asset?         @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  
+  machineId       String?
+  machine         Machine?       @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  
+  incidentId      String?
+  incident        MetricAnomaly? @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  
+  locationId      String?
+  location        Location?      @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  
+  group           String?        // Inventory Group
+  serviceName     String?        // Service Name
+  portNumber      Int?           // Port Number
+  
+  // SLA Tracking
+  slaId           String?
+  sla             SLA?           @relation(fields: [slaId], references: [id], onDelete: SetNull)
+  slaStatus       SlaStatus      @default(ON_TRACK)
+  responseDue     DateTime?
+  firstRespondedAt DateTime?
+  resolutionDue   DateTime?
+  
+  dueDate         DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  
+  comments        TicketComment[]
+  history         TicketHistory[]
+  tasks           Task[]
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([ticketNumber])
+  @@index([status])
+  @@index([priority])
+  @@index([type])
+  @@index([assignedToId])
+  @@index([machineId])
+  @@index([assetId])
+  @@index([incidentId])
+  @@index([createdAt])
+  @@map("tickets")
+}
+
+model TicketComment {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  authorName String  @default("System")
+  
+  content   String
+  isInternal Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ticketId])
+  @@index([createdAt])
+  @@map("ticket_comments")
+}
+
+model TicketHistory {
+  id            String   @id @default(uuid())
+  ticketId      String
+  ticket        Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName      String   @default("System")
+  
+  action        String   // CREATE, STATUS_CHANGE, PRIORITY_CHANGE, ASSIGNMENT, COMMENT, RESOLVE, CLOSE, SLA_UPDATE
+  fieldChanged  String?
+  oldValue      String?
+  newValue      String?
+  details       String
+  
+  createdAt     DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([createdAt])
+  @@map("ticket_histories")
+}
+
+model Maintenance {
+  id             String            @id @default(uuid())
+  title          String
+  description    String?
+  type           MaintenanceType   @default(PREVENTIVE)
+  status         MaintenanceStatus @default(PLANNED)
+  
+  assetId        String?
+  asset          Asset?            @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  
+  machineId      String?
+  machine        Machine?          @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  
+  locationId     String?
+  location       Location?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  
+  assignedToId   String?
+  assignee       User?             @relation("MaintenanceAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  
+  createdById    String?
+  creator        User?             @relation("MaintenanceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  
+  windowId       String?
+  window         MaintenanceWindow? @relation(fields: [windowId], references: [id], onDelete: SetNull)
+  
+  scheduledStart DateTime
+  scheduledEnd   DateTime
+  actualStart    DateTime?
+  actualEnd      DateTime?
+  
+  isRecurring    Boolean           @default(false)
+  recurrenceRule String?           // DAILY, WEEKLY, MONTHLY, QUARTERLY, SEMIANNUAL, ANNUAL
+  
+  suppressAlerts Boolean           @default(true)
+  notes          String?
+  
+  runbookId      String?
+  runbook        Runbook?          @relation(fields: [runbookId], references: [id], onDelete: SetNull)
+  
+  tasks          Task[]
+  checklists     MaintenanceChecklistItem[]
+  
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([scheduledStart])
+  @@index([machineId])
+  @@index([assetId])
+  @@map("maintenances")
+}
+
+model MaintenanceChecklistItem {
+  id            String      @id @default(uuid())
+  maintenanceId String
+  maintenance   Maintenance @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  
+  itemOrder     Int         @default(1)
+  description   String
+  isCompleted   Boolean     @default(false)
+  completedBy   String?
+  completedAt   DateTime?
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([maintenanceId])
+  @@map("maintenance_checklist_items")
+}
+
+model MaintenanceWindow {
+  id           String        @id @default(uuid())
+  name         String
+  description  String?
+  startTime    DateTime
+  endTime      DateTime
+  
+  createdById  String?
+  creator      User?         @relation("WindowCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  
+  machineId    String?
+  machine      Machine?      @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  
+  locationId   String?
+  location     Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  
+  group        String?
+  enabled      Boolean       @default(true)
+  
+  maintenances Maintenance[]
+  
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([startTime, endTime])
+  @@index([enabled])
+  @@map("maintenance_windows")
+}
+
+model Task {
+  id            String      @id @default(uuid())
+  title         String
+  description   String?
+  status        TaskStatus  @default(TODO)
+  priority      TicketPriority @default(NORMAL)
+  
+  assignedToId  String?
+  assignee      User?       @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  
+  ticketId      String?
+  ticket        Ticket?     @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  
+  maintenanceId String?
+  maintenance   Maintenance? @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  
+  dueDate       DateTime?
+  completedAt   DateTime?
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([ticketId])
+  @@index([maintenanceId])
+  @@index([status])
+  @@map("operational_tasks")
+}
+
+model Change {
+  id             String           @id @default(uuid())
+  changeNumber   String           @unique // e.g. "CHG-000001"
+  title          String
+  description    String
+  reason         String?
+  risk           ChangeRisk       @default(LOW)
+  impact         ChangeImpact     @default(LOW)
+  status         ChangeStatus     @default(DRAFT)
+  
+  plannedStart   DateTime
+  plannedEnd     DateTime
+  actualStart    DateTime?
+  actualEnd      DateTime?
+  
+  requesterId    String?
+  requester      User?            @relation("ChangeRequester", fields: [requesterId], references: [id], onDelete: SetNull)
+  
+  approverId     String?
+  approver       User?            @relation("ChangeApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  
+  executorId     String?
+  executor       User?            @relation("ChangeExecutor", fields: [executorId], references: [id], onDelete: SetNull)
+  
+  machineId      String?
+  machine        Machine?         @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  
+  assetId        String?
+  asset          Asset?           @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  
+  locationId     String?
+  location       Location?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  
+  rollbackPlan   String?          // Technical steps to revert
+  validationPlan String?          // Steps to confirm success
+  affectedItems  String?          // Summary of affected systems / topology items
+  
+  runbookId      String?
+  runbook        Runbook?         @relation(fields: [runbookId], references: [id], onDelete: SetNull)
+  
+  approvals      ChangeApproval[]
+  
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([changeNumber])
+  @@index([status])
+  @@index([risk])
+  @@index([impact])
+  @@index([plannedStart])
+  @@map("infrastructure_changes")
+}
+
+model ChangeApproval {
+  id         String           @id @default(uuid())
+  changeId   String
+  change     Change           @relation(fields: [changeId], references: [id], onDelete: Cascade)
+  
+  userId     String?
+  user       User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName   String           @default("Authorized Approver")
+  
+  decision   ApprovalDecision @default(PENDING)
+  comments   String?
+  decidedAt  DateTime?
+  
+  createdAt  DateTime         @default(now())
+
+  @@index([changeId])
+  @@map("change_approvals")
+}
+
+model Runbook {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  description  String?
+  category     String?       @default("General") // Backup, Reboot, Firmware, Database, Network
+  version      String        @default("1.0")
+  content      String?
+  
+  createdById  String?
+  creator      User?         @relation("RunbookCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  
+  updatedById  String?
+  updater      User?         @relation("RunbookUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  
+  steps        RunbookStep[]
+  maintenances Maintenance[]
+  changes      Change[]
+  
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([name])
+  @@index([category])
+  @@map("runbooks")
+}
+
+model RunbookStep {
+  id          String   @id @default(uuid())
+  runbookId   String
+  runbook     Runbook  @relation(fields: [runbookId], references: [id], onDelete: Cascade)
+  
+  stepOrder   Int      @default(1)
+  title       String
+  description String?
+  isRequired  Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([runbookId, stepOrder])
+  @@map("runbook_steps")
+}
+
+// ============================================================
+// INFRAINVENTORY V10: LOCAL AI & INTELLIGENT ASSISTANT
+// ============================================================
+
+enum AIMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+model AIConversation {
+  id        String      @id @default(uuid())
+  title     String      @default("Nueva conversación")
+  userId    String?
+  user      User?       @relation("UserAIConversations", fields: [userId], references: [id], onDelete: Cascade)
+  messages  AIMessage[]
+  
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([userId])
+  @@map("ai_conversations")
+}
+
+model AIMessage {
+  id              String         @id @default(uuid())
+  conversationId  String
+  conversation    AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role            AIMessageRole  @default(USER)
+  content         String
+  
+  findings        Json?          // Structured findings array
+  evidence        Json?          // Structured evidence with sources
+  recommendations Json?          // Structured recommendations
+  relatedEntities Json?          // Links to machines, incidents, tickets, etc.
+  toolsUsed       String[]       @default([])
+  durationMs      Int?
+  tokensUsed      Int?
+  
+  createdAt       DateTime       @default(now())
+
+  @@index([conversationId])
+  @@map("ai_messages")
+}
+
+model AIQueryLog {
+  id           String    @id @default(uuid())
+  userId       String?
+  user         User?     @relation("UserAIQueryLogs", fields: [userId], references: [id], onDelete: SetNull)
+  query        String
+  intent       String?
+  toolsCalled  String[]  @default([])
+  durationMs   Int       @default(0)
+  success      Boolean   @default(true)
+  errorMessage String?
+  tokens       Int?
+  ipAddress    String?
+  
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("ai_query_logs")
+}
+
+model AIConfiguration {
+  id                 String   @id @default(uuid())
+  isEnabled          Boolean  @default(true)
+  provider           String   @default("ollama") // "ollama", "openai", "custom"
+  baseUrl            String   @default("http://ollama:11434")
+  model              String   @default("llama3:8b")
+  apiKeyEncrypted    String?
+  timeoutMs          Int      @default(30000)
+  maxTokens          Int      @default(2048)
+  temperature        Float    @default(0.1)
+  rateLimitPerMinute Int      @default(60)
+  maxHistoryMessages Int      @default(10)
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("ai_configurations")
+}
+
+// ====================================================
+// V11 AUTOMATION, WORKFLOWS, CONTROLLED ACTIONS & AGENTS
+// ====================================================
+
+enum ActionRiskLevel {
+  READ_ONLY
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ActionTargetType {
+  MACHINE
+  ASSET
+  GROUP
+  TAG
+  LOCATION
+  NETWORK
+}
+
+enum WorkflowRunStatus {
+  QUEUED
+  RUNNING
+  WAITING_APPROVAL
+  SUCCESS
+  FAILED
+  CANCELLED
+  TIMEOUT
+  PARTIAL
+}
+
+enum StepExecutionStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+  TIMEOUT
+  CANCELLED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum AgentStatus {
+  ONLINE
+  OFFLINE
+  WARNING
+  REVOKED
+}
+
+enum AgentOsType {
+  WINDOWS
+  LINUX
+  DARWIN
+  OTHER
+}
+
+enum AIProposalStatus {
+  PROPOSED
+  ACCEPTED
+  REJECTED
+  EXECUTED
+  DISCARDED
+}
+
+model AutomationAction {
+  id                 String          @id @default(uuid())
+  name               String          @unique // e.g. "ping_check", "service_restart", etc.
+  label              String
+  description        String?
+  category           String          @default("DIAGNOSTIC") // DIAGNOSTIC, REMEDIATION, MAINTENANCE, SYSTEM, NETWORK
+  riskLevel          ActionRiskLevel @default(READ_ONLY)
+  defaultTimeoutSec  Int             @default(30)
+  defaultRetryCount  Int             @default(0)
+  commandTemplate    String?
+  supportedOs        String[]        @default(["WINDOWS", "LINUX"])
+  parametersSchema   Json?           // JSON schema specifying inputs
+  requiresAgent      Boolean         @default(false)
+  enabled            Boolean         @default(true)
+  
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([name])
+  @@index([riskLevel])
+  @@index([category])
+  @@map("automation_actions")
+}
+
+model Workflow {
+  id                      String            @id @default(uuid())
+  name                    String
+  description             String?
+  category                String            @default("GENERAL")
+  enabled                 Boolean           @default(true)
+  currentVersion          Int               @default(1)
+  targetType              ActionTargetType  @default(MACHINE)
+  concurrencyLimit        Int               @default(5)
+  timeoutTotalSec         Int               @default(600)
+  cronSchedule            String?
+  isTemplate              Boolean           @default(false)
+  circuitBreakerThreshold Int               @default(5)
+  circuitBreakerOpen      Boolean           @default(false)
+  consecutiveFailures     Int               @default(0)
+  
+  createdById             String?
+  creator                 User?             @relation("WorkflowCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  
+  versions                WorkflowVersion[]
+  runs                    WorkflowRun[]
+  
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  @@index([name])
+  @@index([enabled])
+  @@index([isTemplate])
+  @@map("workflows")
+}
+
+model WorkflowVersion {
+  id            String         @id @default(uuid())
+  workflowId    String
+  workflow      Workflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  versionNumber Int
+  isPublished   Boolean        @default(true)
+  notes         String?
+  
+  steps         WorkflowStep[]
+  
+  createdById   String?
+  creator       User?          @relation("WorkflowVersionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  
+  createdAt     DateTime       @default(now())
+
+  @@unique([workflowId, versionNumber])
+  @@index([workflowId])
+  @@map("workflow_versions")
+}
+
+model WorkflowStep {
+  id               String          @id @default(uuid())
+  versionId        String
+  version          WorkflowVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  order            Int
+  actionName       String
+  label            String?
+  parameters       Json?
+  condition        String?         @default("ALWAYS") // ALWAYS, ON_SUCCESS, ON_FAILURE
+  continueOnError  Boolean         @default(false)
+  timeoutSec       Int             @default(30)
+  retryCount       Int             @default(0)
+  retryIntervalSec Int             @default(5)
+  
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([versionId, order])
+  @@map("workflow_steps")
+}
+
+model WorkflowRun {
+  id                 String            @id @default(uuid())
+  workflowId         String?
+  workflow           Workflow?         @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  workflowVersion    Int               @default(1)
+  workflowName       String
+  status             WorkflowRunStatus @default(QUEUED)
+  targetType         ActionTargetType  @default(MACHINE)
+  targetIdentifier   String            // Hostname, Group name, CIDR, etc.
+  targetCount        Int               @default(1)
+  isDryRun           Boolean           @default(false)
+  
+  executedById       String?
+  executor           User?             @relation("WorkflowRunExecutor", fields: [executedById], references: [id], onDelete: SetNull)
+  triggeredBy        String            @default("MANUAL") // MANUAL, SCHEDULED, AI_PROPOSAL, INCIDENT, WEBHOOK
+  
+  approvalRequestId  String?
+  approvalRequest    ApprovalRequest?  @relation("RunApproval", fields: [approvalRequestId], references: [id], onDelete: SetNull)
+  
+  aiProposalId       String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  durationMs         Int?
+  resultSummary      String?
+  errorMessage       String?
+  
+  stepRuns           WorkflowRunStep[]
+  
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([workflowId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([targetIdentifier])
+  @@map("workflow_runs")
+}
+
+model WorkflowRunStep {
+  id             String              @id @default(uuid())
+  runId          String
+  run            WorkflowRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stepOrder      Int
+  actionName     String
+  targetHost     String?
+  machineId      String?
+  machine        Machine?            @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  status         StepExecutionStatus @default(PENDING)
+  parameters     Json?
+  output         String?
+  error          String?
+  retriesUsed    Int                 @default(0)
+  isDryRun       Boolean             @default(false)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  durationMs     Int?
+  
+  createdAt      DateTime            @default(now())
+
+  @@index([runId])
+  @@index([status])
+  @@index([machineId])
+  @@map("workflow_run_steps")
+}
+
+model ApprovalRequest {
+  id               String           @id @default(uuid())
+  actionName       String
+  targetType       ActionTargetType @default(MACHINE)
+  targetIdentifier String
+  targetLabel      String?
+  parameters       Json?
+  riskLevel        ActionRiskLevel  @default(MEDIUM)
+  reason           String
+  evidence         Json?
+  
+  requestedById    String
+  requester        User             @relation("ApprovalRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  
+  approvedById     String?
+  approver         User?            @relation("ApprovalApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  
+  status           ApprovalStatus   @default(PENDING)
+  rejectionReason  String?
+  
+  workflowRuns     WorkflowRun[]    @relation("RunApproval")
+  aiProposal       AIActionProposal?
+  
+  createdAt        DateTime         @default(now())
+  expiresAt        DateTime
+  approvedAt       DateTime?
+  rejectedAt       DateTime?
+
+  @@index([status])
+  @@index([requestedById])
+  @@index([approvedById])
+  @@index([expiresAt])
+  @@map("approval_requests")
+}
+
+model AutomationPolicy {
+  id                    String          @id @default(uuid())
+  name                  String          @unique
+  description           String?
+  groupName             String?         // Scope to host group or null for global
+  maxRiskLevelAllowed   ActionRiskLevel @default(MEDIUM)
+  requireApprovalForRisk ActionRiskLevel @default(MEDIUM)
+  enforceFourEyes       Boolean         @default(true)
+  allowAutoRemediation  Boolean         @default(false)
+  allowRemoteExecution  Boolean         @default(false)
+  maintenanceWindowAware Boolean        @default(true)
+  enabled               Boolean         @default(true)
+  
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@index([name])
+  @@index([groupName])
+  @@index([enabled])
+  @@map("automation_policies")
+}
+
+model Agent {
+  id                   String           @id @default(uuid())
+  agentId              String           @unique // Public AGT-UUID
+  hostname             String
+  osType               AgentOsType      @default(LINUX)
+  osVersion            String?
+  ipAddress            String?
+  agentVersion         String           @default("1.0.0")
+  status               AgentStatus      @default(ONLINE)
+  tokenHash            String
+  capabilities         String[]         @default(["TELEMETRY", "HEALTH_CHECK"])
+  allowRemoteExecution Boolean          @default(false)
+  
+  machineId            String?
+  machine              Machine?         @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  
+  lastSeenAt           DateTime         @default(now())
+  heartbeats           AgentHeartbeat[]
+  
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  @@index([agentId])
+  @@index([hostname])
+  @@index([status])
+  @@index([machineId])
+  @@map("agents")
+}
+
+model AgentHeartbeat {
+  id                   String   @id @default(uuid())
+  agentId              String
+  agent                Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  cpuUsage             Float?
+  ramUsage             Float?
+  diskUsage            Float?
+  uptimeSeconds        Int?
+  activeServicesCount  Int?
+  activeProcessesCount Int?
+  systemPayload        Json?
+  
+  createdAt            DateTime @default(now())
+
+  @@index([agentId, createdAt])
+  @@map("agent_heartbeats")
+}
+
+model AIActionProposal {
+  id                 String           @id @default(uuid())
+  problemDescription String
+  proposedAction     String
+  targetType         ActionTargetType @default(MACHINE)
+  targetId           String
+  targetLabel        String?
+  parameters         Json?
+  riskLevel          ActionRiskLevel  @default(MEDIUM)
+  reason             String
+  evidence           Json?
+  status             AIProposalStatus @default(PROPOSED)
+  suggestedByModel   String           @default("llama3:8b")
+  
+  approvalRequestId  String?          @unique
+  approvalRequest    ApprovalRequest? @relation(fields: [approvalRequestId], references: [id], onDelete: SetNull)
+  
+  workflowRunId      String?
+  
+  userId             String?
+  user               User?            @relation("UserAIProposals", fields: [userId], references: [id], onDelete: SetNull)
+  
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([status])
+  @@index([targetId])
+  @@index([userId])
+  @@map("ai_action_proposals")
+}
+
+
+

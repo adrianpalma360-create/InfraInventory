@@ -1,0 +1,188 @@
+name: CI/CD - Build & Publish Docker Images to GHCR
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # 1. Validation & Test Suite
+  test-and-lint:
+    name: Test & Build Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+            discovery/package-lock.json
+            monitoring-worker/package-lock.json
+
+      - name: Validate Frontend Build
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Validate Backend Build & Prisma
+        working-directory: ./backend
+        run: |
+          npm ci
+          npx prisma generate
+          npm run build
+
+      - name: Validate Discovery Build
+        working-directory: ./discovery
+        run: |
+          npm ci
+          npm run build
+
+      - name: Validate Monitoring Worker Build
+        working-directory: ./monitoring-worker
+        run: |
+          npm ci
+          npm run build
+
+  # 2. Build and Publish Multi-Arch Docker Images to GHCR
+  build-and-publish:
+    name: Build & Publish GHCR Images
+    needs: test-and-lint
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Prepare repository names in lowercase for Docker tag compliance
+      - name: Downcase repository owner
+        id: repo_owner
+        run: |
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
+
+      # Backend Docker Metadata
+      - name: Extract metadata for Backend
+        id: meta_backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/infrainventory-backend
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+
+      # Frontend Docker Metadata
+      - name: Extract metadata for Frontend
+        id: meta_frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/infrainventory-frontend
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+
+      # Discovery Docker Metadata
+      - name: Extract metadata for Discovery
+        id: meta_discovery
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/infrainventory-discovery
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+
+      # Monitoring Worker Docker Metadata
+      - name: Extract metadata for Monitoring Worker
+        id: meta_monitoring
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/infrainventory-monitoring-worker
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+
+      # 1. Build and push Backend Image
+      - name: Build and push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta_backend.outputs.tags }}
+          labels: ${{ steps.meta_backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 2. Build and push Frontend Image
+      - name: Build and push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta_frontend.outputs.tags }}
+          labels: ${{ steps.meta_frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 3. Build and push Discovery Image
+      - name: Build and push Discovery Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./discovery
+          file: ./discovery/Dockerfile
+          push: true
+          tags: ${{ steps.meta_discovery.outputs.tags }}
+          labels: ${{ steps.meta_discovery.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 4. Build and push Monitoring Worker Image
+      - name: Build and push Monitoring Worker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./monitoring-worker
+          file: ./monitoring-worker/Dockerfile
+          push: true
+          tags: ${{ steps.meta_monitoring.outputs.tags }}
+          labels: ${{ steps.meta_monitoring.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

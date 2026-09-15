@@ -1,0 +1,129 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: infrainventory-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-infrainventory_user}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be configured}"
+      POSTGRES_DB: ${POSTGRES_DB:-infrainventory_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - infrainventory_postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-infrainventory_user} -d ${POSTGRES_DB:-infrainventory_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - infrainventory-network
+
+  discovery:
+    build:
+      context: ./discovery
+      dockerfile: Dockerfile
+    container_name: infrainventory-discovery
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+    ports:
+      - "${DISCOVERY_PORT:-5000}:5000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5000/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - infrainventory-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: infrainventory-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-infrainventory_user}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be configured}@postgres:5432/${POSTGRES_DB:-infrainventory_db}?schema=public"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be configured}"
+      COOKIE_SECRET: "${COOKIE_SECRET:?COOKIE_SECRET must be configured}"
+      CORS_ORIGIN: "${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000}"
+      DISCOVERY_SERVICE_URL: http://discovery:5000
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_PROVIDER: ${AI_PROVIDER:-ollama}
+      AI_BASE_URL: ${AI_BASE_URL:-http://ollama:11434}
+      AI_MODEL: ${AI_MODEL:-llama3:8b}
+      AI_API_KEY: ${AI_API_KEY:-}
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:4000/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - infrainventory-network
+
+  monitoring-worker:
+    build:
+      context: ./monitoring-worker
+      dockerfile: Dockerfile
+    container_name: infrainventory-monitoring-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5050
+      BACKEND_URL: http://backend:4000
+    ports:
+      - "${MONITORING_WORKER_PORT:-5050}:5050"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5050/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - infrainventory-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: infrainventory-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:80/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - infrainventory-network
+
+volumes:
+  infrainventory_postgres_data:
+    name: infrainventory_postgres_data
+
+networks:
+  infrainventory-network:
+    name: infrainventory-network
+    driver: bridge

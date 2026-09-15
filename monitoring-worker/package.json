@@ -1,0 +1,19 @@
+{
+  "name": "palma-inventory-monitoring-worker",
+  "version": "1.0.0",
+  "description": "Autonomous real-time monitoring worker for InfraInventory V4",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts"
+  },
+  "dependencies": {
+    "fastify": "^4.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "tsx": "^4.10.5",
+    "typescript": "^5.4.5"
+  }
+}
