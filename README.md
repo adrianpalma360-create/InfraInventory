@@ -130,7 +130,7 @@ cat backup_infrainventory_YYYYMMDD_HHMMSS.sql | docker exec -i infrainventory-po
 
 | Variable | Descripción | Valor por Defecto |
 | :--- | :--- | :--- |
-| `GHCR_NAMESPACE` | Usuario o namespace de GitHub para descarga de imágenes GHCR | `adrianpalma` |
+| `GHCR_NAMESPACE` | Usuario o namespace de GitHub para descarga de imágenes GHCR | `Loquequieras` |
 | `IMAGE_TAG` | Tag de imagen Docker a desplegar (`latest`, `11.0.0`, etc.) | `latest` |
 | `HTTP_PORT` | Puerto HTTP expuesto para la interfaz web | `3000` |
 | `POSTGRES_DB` | Nombre de la base de datos PostgreSQL | `infrainventory_db` |
