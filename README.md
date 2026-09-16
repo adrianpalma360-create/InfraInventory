@@ -36,7 +36,7 @@ InfraInventory está preparado para desplegarse directamente en Portainer sin co
    * **Compose path:** `docker-compose.portainer.yml`
 5. En la sección **Environment variables**, define las siguientes variables:
    ```env
-   GHCR_NAMESPACE=adrianpalma
+   GHCR_NAMESPACE=loquequieras
    IMAGE_TAG=latest
    HTTP_PORT=3000
    POSTGRES_DB=infrainventory_db
