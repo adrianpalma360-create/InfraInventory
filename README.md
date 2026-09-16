@@ -36,7 +36,7 @@ InfraInventory está preparado para desplegarse directamente en Portainer sin co
    * **Compose path:** `docker-compose.portainer.yml`
 5. En la sección **Environment variables**, define las siguientes variables:
    ```env
-   GHCR_NAMESPACE=loquequieras
+   GHCR_NAMESPACE=adrianpalma
    IMAGE_TAG=latest
    HTTP_PORT=3000
    POSTGRES_DB=infrainventory_db
@@ -130,7 +130,7 @@ cat backup_infrainventory_YYYYMMDD_HHMMSS.sql | docker exec -i infrainventory-po
 
 | Variable | Descripción | Valor por Defecto |
 | :--- | :--- | :--- |
-| `GHCR_NAMESPACE` | Usuario o namespace de GitHub para descarga de imágenes GHCR | `Loquequieras` |
+| `GHCR_NAMESPACE` | Usuario o namespace de GitHub para descarga de imágenes GHCR | `adrianpalma` |
 | `IMAGE_TAG` | Tag de imagen Docker a desplegar (`latest`, `11.0.0`, etc.) | `latest` |
 | `HTTP_PORT` | Puerto HTTP expuesto para la interfaz web | `3000` |
 | `POSTGRES_DB` | Nombre de la base de datos PostgreSQL | `infrainventory_db` |
