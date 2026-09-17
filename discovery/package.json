@@ -1,6 +1,6 @@
 {
   "name": "palma-inventory-discovery",
-  "version": "11.2.0",
+  "version": "11.2.1",
   "description": "Palma Inventory Discovery Engine Microservice",
   "main": "dist/server.js",
   "type": "module",

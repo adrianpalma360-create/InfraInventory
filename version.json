@@ -1,9 +1,9 @@
 {
   "major": 11,
   "minor": 2,
-  "patch": 0,
-  "version": "11.2.0",
+  "patch": 1,
+  "version": "11.2.1",
   "tag": "Release",
   "buildDate": "2026-09-17",
-  "releaseCommit": "prod-v11.2.0-release"
+  "releaseCommit": "prod-v11.2.1-release"
 }

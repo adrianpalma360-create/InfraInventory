@@ -1,6 +1,6 @@
 {
   "name": "infrainventory",
-  "version": "11.2.0",
+  "version": "11.2.1",
   "description": "InfraInventory - Enterprise Infrastructure & NOC Platform",
   "private": true,
   "type": "module",
@@ -11,6 +11,7 @@
     "version:minor": "node scripts/release.mjs bump minor",
     "version:major": "node scripts/release.mjs bump major",
     "version:set": "node scripts/release.mjs set",
+    "version:release": "node scripts/release.mjs release",
     "version:sync": "node scripts/release.mjs sync",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build",

@@ -1,6 +1,6 @@
 {
   "name": "palma-inventory-monitoring-worker",
-  "version": "11.2.0",
+  "version": "11.2.1",
   "description": "Autonomous real-time monitoring worker for InfraInventory V4",
   "main": "dist/server.js",
   "scripts": {

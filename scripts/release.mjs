@@ -251,6 +251,26 @@ export function checkConsistency() {
     }
   }
 
+  // Check all package.json files
+  for (const pkgPath of PACKAGE_JSONS) {
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      if (pkg.version !== ver.version) {
+        issues.push(`${path.relative(ROOT_DIR, pkgPath)} version (${pkg.version}) does not match version.json (${ver.version})`);
+      }
+    }
+  }
+
+  // Check all Dockerfiles
+  for (const dockerPath of DOCKERFILES) {
+    if (fs.existsSync(dockerPath)) {
+      const content = fs.readFileSync(dockerPath, 'utf-8');
+      if (!content.includes(`ARG APP_VERSION=${ver.version}`)) {
+        issues.push(`${path.relative(ROOT_DIR, dockerPath)} ARG APP_VERSION does not match version.json (${ver.version})`);
+      }
+    }
+  }
+
   // Check docker-compose.portainer.yml
   if (fs.existsSync(PORTAINER_COMPOSE)) {
     const content = fs.readFileSync(PORTAINER_COMPOSE, 'utf-8');
@@ -264,6 +284,15 @@ export function checkConsistency() {
     valid: issues.length === 0,
     issues,
   };
+}
+
+function printNextSteps(version) {
+  console.log(`\n📋 Next Steps to Publish Release v${version}:`);
+  console.log(`   1. git add -A`);
+  console.log(`   2. git commit -m "Release v${version}"`);
+  console.log(`   3. git tag -a v${version} -m "Release ${version}"`);
+  console.log(`   4. git push origin main`);
+  console.log(`   5. git push origin v${version}\n`);
 }
 
 // ==========================================
@@ -305,14 +334,15 @@ function main() {
     return;
   }
 
-  if (command === 'bump') {
+  if (command === 'bump' || command === 'release') {
     const bumpType = (args[1] || 'patch').toLowerCase();
     const next = calculateNextVersion(current, bumpType);
     const updated = applyVersion(next);
-    console.log(`🚀 Version bumped from ${current.version} to ${updated.version}`);
+    console.log(`🚀 Version updated from ${current.version} to ${updated.version}`);
     console.log(`   Tag: v${updated.version}`);
     console.log(`   Build: ${updated.releaseCommit}`);
     console.log(`   Build Date: ${updated.buildDate}`);
+    printNextSteps(updated.version);
     return;
   }
 
@@ -328,6 +358,7 @@ function main() {
     console.log(`   Tag: v${updated.version}`);
     console.log(`   Build: ${updated.releaseCommit}`);
     console.log(`   Build Date: ${updated.buildDate}`);
+    printNextSteps(updated.version);
     return;
   }
 
@@ -338,9 +369,9 @@ Usage:
   node scripts/release.mjs bump [patch]        # Bump PATCH (11.0.0 -> 11.0.1)
   node scripts/release.mjs bump minor          # Bump MINOR (11.0.1 -> 11.1.0)
   node scripts/release.mjs bump major          # Bump MAJOR (11.1.0 -> 12.0.0)
-  node scripts/release.mjs set <X.Y.Z>         # Set explicit version
+  node scripts/release.mjs set <X.Y.Z>         # Set explicit version (e.g. 11.5.0)
   node scripts/release.mjs sync                # Re-sync files from version.json
-  node scripts/release.mjs check               # Check version consistency
+  node scripts/release.mjs check               # Check version consistency across files
 `);
 }
 

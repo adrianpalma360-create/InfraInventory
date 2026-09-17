@@ -27,7 +27,7 @@ services:
 
   # 🔍 Microservicio de Descubrimiento de Red y Sondeo de Puertos
   discovery:
-    image: ghcr.io/${GHCR_NAMESPACE:-adrianpalma360-create}/infrainventory-discovery:${IMAGE_TAG:-11.2.0}
+    image: ghcr.io/${GHCR_NAMESPACE:-adrianpalma360-create}/infrainventory-discovery:${IMAGE_TAG:-11.2.1}
     pull_policy: always
     container_name: infrainventory-discovery
     restart: unless-stopped
@@ -37,7 +37,7 @@ services:
     cap_add:
       - NET_RAW
     labels:
-      org.opencontainers.image.version: "${IMAGE_TAG:-11.2.0}"
+      org.opencontainers.image.version: "${IMAGE_TAG:-11.2.1}"
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5000/health || exit 1"]
       interval: 10s
@@ -49,7 +49,7 @@ services:
 
   # ⚙️ API Backend (Fastify + Prisma ORM + WebSockets + Automatizaciones)
   backend:
-    image: ghcr.io/${GHCR_NAMESPACE:-adrianpalma360-create}/infrainventory-backend:${IMAGE_TAG:-11.2.0}
+    image: ghcr.io/${GHCR_NAMESPACE:-adrianpalma360-create}/infrainventory-backend:${IMAGE_TAG:-11.2.1}
     pull_policy: always
     container_name: infrainventory-backend
     restart: unless-stopped
@@ -67,7 +67,7 @@ services:
       AI_MODEL: ${AI_MODEL:-llama3:8b}
       AI_API_KEY: ${AI_API_KEY:-}
     labels:
-      org.opencontainers.image.version: "${IMAGE_TAG:-11.2.0}"
+      org.opencontainers.image.version: "${IMAGE_TAG:-11.2.1}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,7 +84,7 @@ services:
 
   # 📡 Worker de Monitorización Continua & Telemetría en Tiempo Real
   monitoring-worker:
-    image: ghcr.io/${GHCR_NAMESPACE:-adrianpalma360-create}/infrainventory-monitoring-worker:${IMAGE_TAG:-11.2.0}
+    image: ghcr.io/${GHCR_NAMESPACE:-adrianpalma360-create}/infrainventory-monitoring-worker:${IMAGE_TAG:-11.2.1}
     pull_policy: always
     container_name: infrainventory-monitoring-worker
     restart: unless-stopped
@@ -93,7 +93,7 @@ services:
       PORT: 5050
       BACKEND_URL: http://backend:4000
     labels:
-      org.opencontainers.image.version: "${IMAGE_TAG:-11.2.0}"
+      org.opencontainers.image.version: "${IMAGE_TAG:-11.2.1}"
     depends_on:
       backend:
         condition: service_healthy
@@ -108,14 +108,14 @@ services:
 
   # 🌐 Frontend Web (React Dark NOC SPA servida por Nginx con Reverse Proxy a /api)
   frontend:
-    image: ghcr.io/${GHCR_NAMESPACE:-adrianpalma360-create}/infrainventory-frontend:${IMAGE_TAG:-11.2.0}
+    image: ghcr.io/${GHCR_NAMESPACE:-adrianpalma360-create}/infrainventory-frontend:${IMAGE_TAG:-11.2.1}
     pull_policy: always
     container_name: infrainventory-frontend
     restart: unless-stopped
     ports:
       - "${HTTP_PORT:-3000}:80"
     labels:
-      org.opencontainers.image.version: "${IMAGE_TAG:-11.2.0}"
+      org.opencontainers.image.version: "${IMAGE_TAG:-11.2.1}"
     depends_on:
       backend:
         condition: service_healthy

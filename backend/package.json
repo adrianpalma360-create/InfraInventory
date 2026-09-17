@@ -1,6 +1,6 @@
 {
   "name": "palma-inventory-backend",
-  "version": "11.2.0",
+  "version": "11.2.1",
   "description": "Palma Inventory Backend API built with Fastify, TypeScript, and Prisma",
   "main": "dist/server.js",
   "scripts": {
