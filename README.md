@@ -1,14 +1,15 @@
 # InfraInventory
 
-> **NOC & Infraestructure managment**
+> **NOC & Infrastructure Management Platform**
 
-InfraInventory es una plataforma integral para el inventario, monitorización y gestión de infraestructura IT y centros de operaciones de red (NOC). Diseñada para operar de forma totalmente contenerizada, segura y desacoplada mediante Docker y Portainer.
+InfraInventory es una plataforma integral para el inventario, monitorización y gestión de infraestructura IT y centros de operaciones de red (NOC). Diseñada para operar de forma totalmente contenerizada, segura y desacoplada mediante Docker, GHCR y Portainer.
 
 ---
 
 ## 🌟 Características Principales
 
 * **🖥️ Inventario y Gestión de Máquinas:** Registro técnico detallado de servidores físicos, máquinas virtuales, appliances de red y puestos de trabajo.
+* **🔍 Advanced Network Discovery (Agentless):** Descubrimiento autónomo de redes sin agente mediante ICMP, ARP, TCP, DNS, SNMP v2c/v3, SSH y WinRM, con clasificación basada en evidencias y auditoría de deltas.
 * **🌐 Módulo IPAM & Subredes:** Gestión centralizada de direccionamiento IPv4/IPv6, asignaciones, conflictos de red y calculadoras CIDR.
 * **⚡ Monitorización en Tiempo Real:** Métricas de latencia, disponibilidad ICMP/TCP, telemetría continua y detección de anomalías.
 * **🗺️ Topología de Red:** Visualización interactiva de mapas de red, dependencias y enlaces entre nodos.
@@ -21,23 +22,95 @@ InfraInventory es una plataforma integral para el inventario, monitorización y 
 
 ---
 
-## 🚀 Despliegue Rápido con Portainer (Recomendado)
+## 🔍 Advanced Network Discovery (Descubrimiento Autónomo sin Agente)
 
-InfraInventory está preparado para desplegarse directamente en Portainer sin compilar código en el host.
+InfraInventory 11.2.0 incluye un motor de descubrimiento modular de alta precisión diseñado para auditar redes de cualquier tamaño sin requerir instalación de agentes en los equipos cliente:
 
-### Paso a paso en Portainer:
+```
+InfraInventory Discovery Engine
+            │
+            ▼
+    Subred CIDR Objetivo
+            │
+            ├── ICMP ──────────► Verificación de actividad & Latencia (RTT)
+            ├── ARP ───────────► Dirección MAC & Fabricante (OUI IEEE)
+            ├── TCP ───────────► Sondeo de puertos abiertos & Banners
+            ├── DNS ───────────► Resolución de nombres inversa (PTR)
+            ├── SNMP v2c/v3 ───► sysName, sysDescr, Interfaces & Telemetría
+            ├── SSH ───────────► Auditoría remota de sistemas Linux / UNIX
+            └── WinRM/WMI ─────► Auditoría remota de sistemas Windows
+            │
+            ▼
+Identificación & Clasificación Basada en Evidencias
+(Virtualization Host [Proxmox], Docker Host, Server, Switch, Router, Firewall, etc.)
+            │
+            ▼
+Motor de Detección de Cambios (Diff Engine)
+(Nuevos dispositivos, Delas de IP/MAC/Hostname/SO/Puertos/Hardware, Dispositivos Offline)
+            │
+            ▼
+Aprobación e Incorporación al Inventario Oficial
+```
 
-1. Inicia sesión en tu panel de **Portainer**.
-2. Dirígete a **Stacks** en el menú lateral y haz clic en **Add stack**.
-3. Selecciona el método **Repository** (Git Repository).
-4. Configura los siguientes datos:
-   * **Repository URL:** `https://github.com/adrianpalma/InfraInventory`
-   * **Repository reference:** `refs/heads/main` (o un tag de versión como `refs/tags/v11.0.0`)
+### Métodos de Descubrimiento y Credenciales
+
+| Método | Información Obtenida | ¿Requiere Credenciales? | Notas de Seguridad |
+| :--- | :--- | :---: | :--- |
+| **ICMP** | Disponibilidad (Online/Offline), Latencia RTT | **No** | No agresivo, usa timeout configurable |
+| **ARP** | IP, Dirección MAC, Fabricante hardware (OUI) | **No** | Lectura de `/proc/net/arp` y tabla de vecinos |
+| **TCP Port Scan** | Puertos abiertos, Banners de servicio (HTTP, SSH, Proxmox, Portainer, etc.) | **No** | Modos Básico (12P), Completo (30P) o Personalizado |
+| **DNS** | Hostname inverso (FQDN / PTR) | **No** | Resolución DNS asíncrona no bloqueante |
+| **SNMP (v2c / v3)** | `sysName`, `sysDescr`, `sysObjectID`, `sysUpTime`, interfaces, estado de enlaces, fabricante y modelo | **Sí** | Requiere community string (v2c) o credenciales USM (v3). Almacenadas de forma segura. |
+| **SSH** | Hostname, distribución SO, kernel, CPU, memoria RAM, discos, interfaces | **Sí** | Opcional para hosts Linux/UNIX. Si no está disponible, el descubrimiento continúa sin error. |
+| **WinRM / WMI** | Hostname, versión Windows, CPU, RAM, discos, dominio/workgroup | **Sí** | Opcional para hosts Windows. Si no está disponible, reporta `unavailable` sin error. |
+
+### Clasificación Basada en Evidencias
+
+El clasificador asigna a cada dispositivo su rol exacto a partir de firmas comprobadas sin inventar datos:
+* **Virtualization Host:** Proxmox VE (puerto 8006, banner PVE, API console), VMware ESXi (puertos 902/443), Hyper-V.
+* **Docker Host:** Portainer (puertos 9000/9443), firmas de Docker proxy y daemon.
+* **Printer:** Impresoras de red vía RAW JetDirect (9100), IPP (631), LPD (515) y fabricantes (HP, Epson, Brother, Canon, Xerox).
+* **Router:** MikroTik RouterOS, Cisco IOS, pfSense, OpenWrt, VyOS, DNS + pasarela.
+* **Firewall:** Fortinet FortiGate, pfSense, OPNsense, Palo Alto, CheckPoint, Sophos.
+* **Switch:** Cisco Catalyst/Nexus, HP ProCurve, Aruba, Ubiquiti Switch, TP-Link JetStream, Juniper.
+* **Access Point:** Ubiquiti UniFi AP, Aruba AP, Cisco Aironet AP.
+* **NAS & Storage:** Synology DSM (5000/5001), QNAP QTS (8080), TrueNAS/FreeNAS, iSCSI targets (3260).
+* **IP Camera:** Flujos RTSP (554), ONVIF (8000), Dahua (37777), Hikvision, Axis.
+* **IoT & Smart Home:** MQTT (1883), Home Assistant (8123), Google Cast (8008/8009).
+* **Server / Workstation:** Servidores corporativos (Linux/Windows Server) y puestos de trabajo cliente.
+* **Unknown:** Dispositivos sin firmas suficientes para garantizar certeza técnica.
+
+### Detección de Cambios (Diff Engine) y Seguridad
+
+1. **Nuevos Dispositivos (`NEW_DEVICE_DETECTED`):** Todo host no registrado previamente ingresa con estado `Pending Review` para ser auditado antes de incorporarse al inventario de producción.
+2. **Dispositivos Desaparecidos / Offline (`DEVICE_OFFLINE`):** Si un host de inventario no responde en su subred, se marca automáticamente como `OFFLINE` y se genera una alerta. **InfraInventory nunca elimina automáticamente equipos del inventario**.
+3. **Auditoría de Modificaciones:** Compara y registra deltas en:
+   * IP modificada
+   * MAC modificada
+   * Hostname modificado
+   * Fabricante modificado
+   * Sistema operativo actualizado
+   * Puertos nuevos abiertos / cerrados
+   * Cambios de hardware (ampliación de memoria RAM, sustitución de CPU)
+
+---
+
+## 🚀 Despliegue en Producción con Portainer (Recomendado)
+
+InfraInventory está preparado para desplegarse directamente en Portainer mediante Stacks conectados a Git o imágenes GHCR.
+
+### Opción A: Despliegue Gestionado por Tags de Versión (Muestra `Deployed Version: v11.0.0` en Portainer)
+
+1. En tu panel de **Portainer**, ve a **Stacks** $\rightarrow$ **Add stack**.
+2. Selecciona **Repository** (Git Repository).
+3. Configura:
+   * **Repository URL:** `https://github.com/adrianpalma360-create/InfraInventory`
+   * **Repository reference:** `refs/tags/v11.0.0` (o el tag semántico que desees desplegar)
    * **Compose path:** `docker-compose.portainer.yml`
-5. En la sección **Environment variables**, define las siguientes variables:
+4. En **Environment variables**, define:
    ```env
-   GHCR_NAMESPACE=adrianpalma
-   IMAGE_TAG=latest
+   GHCR_NAMESPACE=adrianpalma360-create
+   IMAGE_TAG=11.0.0
    HTTP_PORT=3000
    POSTGRES_DB=infrainventory_db
    POSTGRES_USER=infrainventory_user
@@ -45,30 +118,28 @@ InfraInventory está preparado para desplegarse directamente en Portainer sin co
    JWT_SECRET=tu_clave_secreta_jwt_de_al_menos_32_caracteres
    COOKIE_SECRET=tu_clave_secreta_cookie_de_al_menos_32_caracteres
    ```
-6. Haz clic en **Deploy the stack**.
-7. Espera unos segundos a que los contenedores inicien y alcancen el estado `healthy`.
-8. Abre tu navegador web en:
-   ```
-   http://IP_DE_TU_SERVIDOR:3000
-   ```
-9. Sigue el asistente de bienvenida **/setup** para crear tu cuenta de administrador e iniciar sesión.
+5. Haz clic en **Deploy the stack**. Portainer mostrará la versión semántica desplegada.
+
+### Opción B: Despliegue Continuo Automatizado (Git $\rightarrow$ GitHub Actions $\rightarrow$ GHCR $\rightarrow$ Portainer)
+
+1. En Portainer, configura **Repository reference:** `refs/heads/main` y activa la opción **Webhook**.
+2. Copia la URL del Webhook de Portainer y agrégala en los Secrets de tu repositorio GitHub con el nombre `PORTAINER_WEBHOOK_URL`.
+3. Cuando publiques una release en GitHub, GitHub Actions compilará las imágenes en GHCR (`:11.0.1` y `:latest`) y, **una vez que las imágenes estén publicadas**, notificará al webhook de Portainer para actualizar los contenedores automáticamente con `pull_policy: always`.
 
 ---
 
 ## 🐳 Despliegue con Docker Compose CLI
 
-Si prefieres desplegar utilizando la terminal de tu servidor:
-
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/adrianpalma/InfraInventory.git
+git clone https://github.com/adrianpalma360-create/InfraInventory.git
 cd InfraInventory
 
 # 2. Configurar variables de entorno
 cp .env.example .env
 nano .env  # Configura tus contraseñas seguras y puertos
 
-# 3. Iniciar la aplicación mediante imágenes precompiladas (Portainer / Prod)
+# 3. Iniciar la aplicación mediante imágenes precompiladas de GHCR
 docker compose -f docker-compose.portainer.yml up -d
 
 # (O si deseas compilar el código localmente)
@@ -76,6 +147,39 @@ docker compose up -d --build
 ```
 
 Accede a `http://localhost:3000` (o la IP de tu servidor) y completa el asistente inicial.
+
+---
+
+## 📦 Sistema de Versiones Semánticas (SemVer)
+
+InfraInventory utiliza versionado semántico estricto `MAJOR.MINOR.PATCH` con sincronización automática en:
+- **Acerca de (UI Frontend):** Muestra Versión, Release, Build y Fecha de Compilación.
+- **Backend API (`/api/about`):** Proporciona los metadatos institucionales y versión.
+- **Git Tags:** Tags semánticos `vX.Y.Z` (ej. `v11.0.0`).
+- **GHCR (Docker):** Imágenes inmutables `ghcr.io/adrianpalma360-create/...:11.0.0` y `:latest`.
+- **Portainer:** Soporte para despliegue inmutable por tag o continuous deployment vía `:latest`.
+
+### Comandos de Versionado
+
+```bash
+# Consultar versión actual
+node scripts/release.mjs current
+
+# Verificar consistencia de versiones en todos los módulos
+npm run version:check
+
+# Incrementar versión PATCH (11.0.0 -> 11.0.1) [Comportamiento por defecto]
+npm run version:bump
+
+# Incrementar versión MENOR (11.0.1 -> 11.1.0)
+npm run version:minor
+
+# Incrementar versión MAYOR (11.1.0 -> 12.0.0)
+npm run version:major
+
+# Definir una versión exacta
+node scripts/release.mjs set 15.2.0
+```
 
 ---
 
@@ -104,15 +208,13 @@ Las migraciones de base de datos se aplican automáticamente de forma no destruc
 Para fijar o regresar a una versión anterior concreta (por ejemplo `11.0.0`):
 1. En Portainer (o en tu archivo `.env`), cambia la variable:
    ```env
-   APP_VERSION=11.0.0
+   IMAGE_TAG=11.0.0
    ```
 2. Vuelve a desplegar el stack.
 
 ---
 
 ## 💾 Copias de Seguridad (Backup de PostgreSQL)
-
-Toda la información reside en PostgreSQL y su volumen persistente.
 
 ### Crear un Backup:
 ```bash
@@ -130,8 +232,9 @@ cat backup_infrainventory_YYYYMMDD_HHMMSS.sql | docker exec -i infrainventory-po
 
 | Variable | Descripción | Valor por Defecto |
 | :--- | :--- | :--- |
-| `GHCR_NAMESPACE` | Usuario o namespace de GitHub para descarga de imágenes GHCR | `adrianpalma` |
+| `GHCR_NAMESPACE` | Usuario o namespace de GitHub para descarga de imágenes GHCR | `adrianpalma360-create` |
 | `IMAGE_TAG` | Tag de imagen Docker a desplegar (`latest`, `11.0.0`, etc.) | `latest` |
+| `APP_VERSION` | Alias alternativo de versión Docker en compose | `latest` |
 | `HTTP_PORT` | Puerto HTTP expuesto para la interfaz web | `3000` |
 | `POSTGRES_DB` | Nombre de la base de datos PostgreSQL | `infrainventory_db` |
 | `POSTGRES_USER` | Usuario de la base de datos | `infrainventory_user` |

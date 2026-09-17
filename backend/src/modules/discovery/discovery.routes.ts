@@ -4,6 +4,7 @@ import {
   createScanSchema,
   importDiscoveredHostSchema,
   discoveryChangeQuerySchema,
+  saveDiscoveryNetworkSchema,
 } from './discovery.schema.js';
 import { authenticate, requirePermission } from '../../middleware/auth.js';
 
@@ -23,7 +24,13 @@ export const discoveryRoutes: FastifyPluginAsync = async (fastify) => {
         required: ['networkCidr'],
         properties: {
           networkCidr: { type: 'string' },
-          scanType: { type: 'string', enum: ['BASIC', 'FULL'], default: 'BASIC' },
+          scanType: { type: 'string', enum: ['BASIC', 'FULL', 'CUSTOM'], default: 'BASIC' },
+          customPorts: { type: 'array', items: { type: 'integer' } },
+          excludedIps: { type: 'array', items: { type: 'string' } },
+          methods: { type: 'object' },
+          snmpCommunity: { type: 'string' },
+          snmpVersion: { type: 'string', enum: ['v2c', 'v3'] },
+          credentials: { type: 'object' },
         },
       },
     },
@@ -203,6 +210,51 @@ export const discoveryRoutes: FastifyPluginAsync = async (fastify) => {
         data: machine,
         message: `Dispositivo ${machine.hostname} incorporado con éxito al inventario`,
       });
+    },
+  });
+
+  // GET /api/discovery/networks - List configured discovery networks
+  fastify.get('/discovery/networks', {
+    preHandler: [requirePermission('DISCOVERY_READ')],
+    schema: {
+      tags: ['Discovery'],
+      summary: 'Listar redes configuradas para descubrimiento periódico',
+    },
+    handler: async () => {
+      const networks = await discoveryService.listNetworks();
+      return { success: true, data: networks };
+    },
+  });
+
+  // POST /api/discovery/networks - Create / update discovery network configuration
+  fastify.post('/discovery/networks', {
+    preHandler: [requirePermission('DISCOVERY_RUN')],
+    schema: {
+      tags: ['Discovery'],
+      summary: 'Guardar configuración de red para descubrimiento',
+    },
+    handler: async (request) => {
+      const input = saveDiscoveryNetworkSchema.parse(request.body);
+      const network = await discoveryService.saveNetwork(input);
+      return { success: true, data: network, message: 'Red de descubrimiento guardada correctamente' };
+    },
+  });
+
+  // DELETE /api/discovery/networks/:id - Delete discovery network configuration
+  fastify.delete('/discovery/networks/:id', {
+    preHandler: [requirePermission('DISCOVERY_RUN')],
+    schema: {
+      tags: ['Discovery'],
+      summary: 'Eliminar configuración de red de descubrimiento',
+      params: {
+        type: 'object',
+        properties: { id: { type: 'string', format: 'uuid' } },
+      },
+    },
+    handler: async (request) => {
+      const { id } = request.params as { id: string };
+      await discoveryService.deleteNetwork(id);
+      return { success: true, message: 'Red de descubrimiento eliminada correctamente' };
     },
   });
 };

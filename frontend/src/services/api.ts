@@ -14,6 +14,8 @@ import {
   DiscoveryScan,
   DiscoveryHost,
   DiscoveryChange,
+  DiscoveryNetwork,
+  StartScanPayload,
   ScanStatus,
   User,
   Role,
@@ -415,7 +417,7 @@ export const api = {
   },
 
   // Discovery Engine
-  startDiscoveryScan: (data: { networkCidr: string; scanType?: 'BASIC' | 'FULL' }) =>
+  startDiscoveryScan: (data: StartScanPayload) =>
     request<DiscoveryScan>('/discovery/scans', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -486,6 +488,19 @@ export const api = {
     request<Machine>(`/discovery/hosts/${id}/import`, {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+
+  getDiscoveryNetworks: () => request<DiscoveryNetwork[]>('/discovery/networks'),
+
+  saveDiscoveryNetwork: (data: Partial<DiscoveryNetwork>) =>
+    request<DiscoveryNetwork>('/discovery/networks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deleteDiscoveryNetwork: (id: string) =>
+    request<{ success: boolean; message: string }>(`/discovery/networks/${id}`, {
+      method: 'DELETE',
     }),
 
   // V4 Metrics & Real-time Monitoring Endpoints

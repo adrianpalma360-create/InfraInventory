@@ -435,6 +435,7 @@ model ChangeLog {
 enum ScanType {
   BASIC
   FULL
+  CUSTOM
 }
 
 enum ScanStatus {
@@ -454,9 +455,14 @@ enum HostStatus {
 enum DiscoveryChangeType {
   NEW_DEVICE
   IP_CHANGED
+  MAC_CHANGED
+  HOSTNAME_CHANGED
+  VENDOR_CHANGED
+  OS_CHANGED
   NEW_PORT
   PORT_CLOSED
   SERVICE_MODIFIED
+  HARDWARE_CHANGED
   DEVICE_OFFLINE
   DEVICE_NOT_DETECTED
 }
@@ -466,6 +472,26 @@ enum DiscoveryChangeStatus {
   APPROVED
   IGNORED
   APPLIED
+}
+
+model DiscoveryNetwork {
+  id             String    @id @default(uuid())
+  name           String
+  cidr           String    @unique
+  description    String?
+  excludedIps    String[]  @default([])
+  schedule       String    @default("MANUAL") // MANUAL, EVERY_15_MIN, EVERY_30_MIN, EVERY_1_HOUR, EVERY_6_HOURS, DAILY
+  scanType       ScanType  @default(BASIC)
+  customPorts    Int[]     @default([])
+  enabledMethods Json?
+  snmpCommunity  String?
+  lastScannedAt  DateTime?
+  enabled        Boolean   @default(true)
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("discovery_networks")
 }
 
 model DiscoveryScan {
@@ -504,6 +530,7 @@ model DiscoveryHost {
   hostname          String?
   vendor            String?
   osGuess           String?
+  deviceType        String?           @default("Unknown")
   status            HostStatus        @default(ONLINE)
   responseTimeMs    Int?
   isNew             Boolean           @default(false)

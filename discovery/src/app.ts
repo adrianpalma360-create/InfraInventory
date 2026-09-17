@@ -8,9 +8,51 @@ import { discoveryEngine } from './scanner/engine.js';
 const startScanSchema = z.object({
   scanId: z.string().uuid(),
   cidr: z.string().min(1),
-  scanType: z.enum(['BASIC', 'FULL']).default('BASIC'),
+  scanType: z.enum(['BASIC', 'FULL', 'CUSTOM']).default('BASIC'),
+  customPorts: z.array(z.number().int().min(1).max(65535)).optional(),
+  excludedIps: z.array(z.string()).optional(),
+  methods: z
+    .object({
+      icmp: z.boolean().optional(),
+      arp: z.boolean().optional(),
+      tcp: z.boolean().optional(),
+      dns: z.boolean().optional(),
+      snmp: z.boolean().optional(),
+      ssh: z.boolean().optional(),
+      winrm: z.boolean().optional(),
+    })
+    .optional(),
+  snmp: z
+    .object({
+      version: z.enum(['v2c', 'v3']).optional(),
+      community: z.string().optional(),
+      port: z.number().int().min(1).max(65535).optional(),
+      timeoutMs: z.number().int().min(100).max(5000).optional(),
+      retries: z.number().int().min(0).max(5).optional(),
+    })
+    .optional(),
+  credentials: z
+    .object({
+      ssh: z
+        .object({
+          username: z.string(),
+          password: z.string().optional(),
+          privateKey: z.string().optional(),
+          port: z.number().int().min(1).max(65535).optional(),
+        })
+        .optional(),
+      winrm: z
+        .object({
+          username: z.string(),
+          password: z.string().optional(),
+          port: z.number().int().min(1).max(65535).optional(),
+          useHttps: z.boolean().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
   concurrency: z.number().int().min(1).max(64).optional(),
-  timeoutMs: z.number().int().min(100).max(3000).optional(),
+  timeoutMs: z.number().int().min(100).max(5000).optional(),
 });
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -86,7 +128,10 @@ export async function buildApp(): Promise<FastifyInstance> {
     const { id } = request.params as { id: string };
     const cancelled = discoveryEngine.cancelScan(id);
     if (!cancelled) {
-      return reply.status(400).send({ success: false, message: 'Scan cannot be cancelled or was not found' });
+      return reply.status(400).send({
+        success: false,
+        message: 'Scan cannot be cancelled or was not found',
+      });
     }
     return reply.send({ success: true, message: 'Scan cancelled successfully' });
   });

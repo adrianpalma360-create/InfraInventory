@@ -31,10 +31,29 @@ export class DiscoveryEngine {
   }
 
   async startScan(options: StartScanOptions): Promise<ScanProgress> {
-    const { scanId, cidr, scanType, concurrency = 20, timeoutMs = 600 } = options;
+    const {
+      scanId,
+      cidr,
+      scanType = 'BASIC',
+      customPorts,
+      excludedIps,
+      methods,
+      snmp,
+      credentials,
+      concurrency = 20,
+      timeoutMs = 600,
+    } = options;
 
-    const { ips } = parseCidr(cidr);
-    const portsToScan = scanType === 'FULL' ? FULL_PORTS : BASIC_PORTS;
+    const { ips } = parseCidr(cidr, excludedIps);
+
+    let portsToScan: number[];
+    if (scanType === 'CUSTOM' && customPorts && customPorts.length > 0) {
+      portsToScan = customPorts;
+    } else if (scanType === 'FULL') {
+      portsToScan = FULL_PORTS;
+    } else {
+      portsToScan = BASIC_PORTS;
+    }
 
     const scanRecord: ScanProgress = {
       scanId,
@@ -45,6 +64,9 @@ export class DiscoveryEngine {
       totalHosts: ips.length,
       scannedHosts: 0,
       activeHosts: 0,
+      newDevices: 0,
+      changedDevices: 0,
+      missingDevices: 0,
       discoveredHosts: [],
       startedAt: new Date().toISOString(),
     };
@@ -52,7 +74,13 @@ export class DiscoveryEngine {
     this.activeScans.set(scanId, scanRecord);
 
     // Run scan asynchronously in background worker
-    this.runScanWorker(scanRecord, ips, portsToScan, concurrency, timeoutMs).catch((err) => {
+    this.runScanWorker(scanRecord, ips, portsToScan, {
+      concurrency,
+      timeoutMs,
+      methods,
+      snmp,
+      credentials,
+    }).catch((err) => {
       scanRecord.status = 'FAILED';
       scanRecord.errorMessage = err.message;
       scanRecord.completedAt = new Date().toISOString();
@@ -65,8 +93,13 @@ export class DiscoveryEngine {
     scan: ScanProgress,
     ips: string[],
     portsToScan: number[],
-    concurrency: number,
-    timeoutMs: number
+    options: {
+      concurrency: number;
+      timeoutMs: number;
+      methods?: any;
+      snmp?: any;
+      credentials?: any;
+    }
   ) {
     const startTime = Date.now();
     const discovered: DiscoveredHostResult[] = [];
@@ -80,19 +113,23 @@ export class DiscoveryEngine {
 
         const ip = ips[currentIndex++];
         try {
-          const result = await probeHost(ip, portsToScan, timeoutMs);
-          scan.scannedHosts++;
-          scan.progress = Math.min(99, Math.round((scan.scannedHosts / scan.totalHosts) * 100));
+          const result = await probeHost(ip, {
+            portsToScan,
+            timeoutMs: options.timeoutMs,
+            methods: options.methods,
+            snmp: options.snmp,
+            credentials: options.credentials,
+          });
 
-          if (result.status === 'ONLINE') {
+          scan.scannedHosts++;
+          scan.progress = Math.min(
+            99,
+            Math.round((scan.scannedHosts / Math.max(1, scan.totalHosts)) * 100)
+          );
+
+          if (result && result.status === 'ONLINE') {
             scan.activeHosts++;
-            discovered.push({
-              ip: result.ip,
-              hostname: result.hostname,
-              status: 'ONLINE',
-              responseTimeMs: result.responseTimeMs,
-              ports: result.ports,
-            });
+            discovered.push(result);
             scan.discoveredHosts = [...discovered];
           }
         } catch {
@@ -102,7 +139,8 @@ export class DiscoveryEngine {
     };
 
     // Run parallel workers limited by concurrency
-    const workers = Array.from({ length: Math.min(concurrency, ips.length) }, () => worker());
+    const actualConcurrency = Math.max(1, Math.min(options.concurrency, ips.length));
+    const workers = Array.from({ length: actualConcurrency }, () => worker());
     await Promise.all(workers);
 
     if (this.cancelledScans.has(scan.scanId)) {

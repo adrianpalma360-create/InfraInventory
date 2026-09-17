@@ -4,6 +4,7 @@ import {
   DiscoveryScan,
   DiscoveryHost,
   DiscoveryChange,
+  DiscoveryNetwork,
   Location,
   VLAN,
   MachineType,
@@ -29,6 +30,18 @@ import {
   History,
   ShieldCheck,
   AlertOctagon,
+  Sliders,
+  Network,
+  ChevronDown,
+  ChevronUp,
+  Trash2,
+  ArrowRightLeft,
+  Printer,
+  Router,
+  Radio,
+  HardDrive,
+  Camera,
+  Layers,
 } from 'lucide-react';
 
 export const DiscoveryPage: React.FC = () => {
@@ -37,18 +50,56 @@ export const DiscoveryPage: React.FC = () => {
   // Scan Launcher State
   const [networkCidr, setNetworkCidr] = useState('192.168.1.0/24');
   const [scanType, setScanType] = useState<ScanType>('BASIC');
+  const [excludedIps, setExcludedIps] = useState('192.168.1.1, 192.168.1.254');
+  const [customPorts, setCustomPorts] = useState('22, 80, 443, 8006, 9000, 9100');
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [isStartingScan, setIsStartingScan] = useState(false);
+
+  // Method toggles
+  const [methods, setMethods] = useState({
+    icmp: true,
+    arp: true,
+    tcp: true,
+    dns: true,
+    snmp: true,
+    ssh: false,
+    winrm: false,
+  });
+
+  // Credentials configuration
+  const [snmpCommunity, setSnmpCommunity] = useState('public');
+  const [snmpVersion, setSnmpVersion] = useState<'v2c' | 'v3'>('v2c');
+  const [sshUser, setSshUser] = useState('');
+  const [sshPassword, setSshPassword] = useState('');
+  const [winrmUser, setWinrmUser] = useState('');
+  const [winrmPassword, setWinrmPassword] = useState('');
 
   // Active / Selected Scan State
   const [activeScan, setActiveScan] = useState<DiscoveryScan | null>(null);
   const [scansHistory, setScansHistory] = useState<DiscoveryScan[]>([]);
   const [hosts, setHosts] = useState<DiscoveryHost[]>([]);
   const [changes, setChanges] = useState<DiscoveryChange[]>([]);
+  const [networks, setNetworks] = useState<DiscoveryNetwork[]>([]);
   const [isLoadingScans, setIsLoadingScans] = useState(true);
   const [isLoadingHosts, setIsLoadingHosts] = useState(false);
 
-  // Active Tab within Discovery
-  const [activeTab, setActiveTab] = useState<'discovered' | 'new' | 'offline' | 'history'>('discovered');
+  // Active Tab
+  const [activeTab, setActiveTab] = useState<
+    'discovered' | 'new' | 'changes' | 'offline' | 'networks' | 'history'
+  >('discovered');
+
+  // Network Configuration Modal State
+  const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false);
+  const [networkForm, setNetworkForm] = useState({
+    id: '',
+    name: '',
+    cidr: '',
+    description: '',
+    excludedIps: '',
+    schedule: 'MANUAL' as DiscoveryNetwork['schedule'],
+    scanType: 'BASIC' as ScanType,
+    snmpCommunity: 'public',
+  });
 
   // Import Modal State
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -69,21 +120,22 @@ export const DiscoveryPage: React.FC = () => {
   // Polling ref
   const pollIntervalRef = useRef<any>(null);
 
-  // 1. Load initial data: scans history & metadata
+  // 1. Load initial data
   const loadInitialData = async () => {
     setIsLoadingScans(true);
     try {
-      const [scansList, locList, vlanList] = await Promise.all([
+      const [scansList, locList, vlanList, netList] = await Promise.all([
         api.getDiscoveryScans(),
         api.getLocations(),
         api.getVlans(),
+        api.getDiscoveryNetworks(),
       ]);
       setScansHistory(scansList);
       setLocations(locList);
       setVlans(vlanList);
+      setNetworks(netList);
 
       if (scansList.length > 0) {
-        // Default to latest scan
         selectScan(scansList[0].id);
       }
     } catch (err: any) {
@@ -100,7 +152,7 @@ export const DiscoveryPage: React.FC = () => {
     };
   }, []);
 
-  // 2. Select & load a scan
+  // 2. Select & load scan detail
   const selectScan = async (scanId: string) => {
     setIsLoadingHosts(true);
     try {
@@ -132,9 +184,8 @@ export const DiscoveryPage: React.FC = () => {
           if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
           toast.success(
             'Escaneo finalizado',
-            'Descubrimiento de red completado exitosamente.'
+            'Descubrimiento avanzado de red completado exitosamente.'
           );
-          // Reload full scan and list
           selectScan(scanId);
           const updatedScans = await api.getDiscoveryScans();
           setScansHistory(updatedScans);
@@ -153,15 +204,38 @@ export const DiscoveryPage: React.FC = () => {
       return;
     }
 
+    const parsedExcluded = excludedIps
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const parsedCustomPorts =
+      scanType === 'CUSTOM'
+        ? customPorts
+            .split(',')
+            .map((s) => parseInt(s.trim(), 10))
+            .filter((p) => !isNaN(p) && p > 0 && p <= 65535)
+        : undefined;
+
     setIsStartingScan(true);
     try {
       const newScan = await api.startDiscoveryScan({
         networkCidr: networkCidr.trim(),
         scanType,
+        customPorts: parsedCustomPorts,
+        excludedIps: parsedExcluded.length > 0 ? parsedExcluded : undefined,
+        methods,
+        snmpCommunity: methods.snmp && snmpCommunity ? snmpCommunity : undefined,
+        snmpVersion: methods.snmp ? snmpVersion : undefined,
+        credentials: {
+          ssh: methods.ssh && sshUser ? { username: sshUser, password: sshPassword || undefined } : undefined,
+          winrm: methods.winrm && winrmUser ? { username: winrmUser, password: winrmPassword || undefined } : undefined,
+        },
       });
+
       toast.success(
-        'Escaneo iniciado',
-        `Sondeando la red ${newScan.networkCidr} (${scanType === 'FULL' ? 'Completo' : 'Básico'})`
+        'Escaneo avanzado iniciado',
+        `Sondeando la red ${newScan.networkCidr} (${scanType}) con métodos activos.`
       );
       setActiveScan(newScan);
       setHosts([]);
@@ -191,18 +265,30 @@ export const DiscoveryPage: React.FC = () => {
     }
   };
 
-  // 6. Open Import Modal
+  // 6. Open Import Modal with Smart Classification
   const handleOpenImport = (host: DiscoveryHost) => {
     setSelectedHostToImport(host);
+
+    let mappedType: MachineType = 'PHYSICAL_SERVER';
+    const typeStr = (host.deviceType || '').toLowerCase();
+    if (typeStr.includes('virtualization') || typeStr.includes('hypervisor')) mappedType = 'VIRTUAL_SERVER';
+    else if (typeStr.includes('switch')) mappedType = 'SWITCH';
+    else if (typeStr.includes('router')) mappedType = 'ROUTER';
+    else if (typeStr.includes('firewall')) mappedType = 'FIREWALL';
+    else if (typeStr.includes('printer')) mappedType = 'PRINTER';
+    else if (typeStr.includes('nas') || typeStr.includes('storage')) mappedType = 'NAS';
+    else if (typeStr.includes('workstation') || typeStr.includes('laptop')) mappedType = 'PC';
+    else if (typeStr.includes('server')) mappedType = 'PHYSICAL_SERVER';
+
     setImportForm({
-      hostname: host.hostname || `HOST-${host.ip.split('.').pop()}`,
-      type: 'PHYSICAL_SERVER',
+      hostname: host.hostname || `HOST-${host.ip.replace(/\./g, '-')}`,
+      type: mappedType,
       os: host.osGuess || '',
       manufacturer: host.vendor || '',
       model: '',
       locationId: locations[0]?.id || '',
       vlanId: vlans[0]?.id || '',
-      description: `Importado automáticamente desde Discovery (${host.ip})`,
+      description: `Importado desde Advanced Discovery (${host.ip}) [Clasificación: ${host.deviceType || 'Unknown'}]`,
     });
     setIsImportModalOpen(true);
   };
@@ -233,27 +319,98 @@ export const DiscoveryPage: React.FC = () => {
       );
       setIsImportModalOpen(false);
 
-      // Refresh scan data
       if (activeScan) selectScan(activeScan.id);
     } catch (err: any) {
       toast.error('Error al importar dispositivo', err.message);
     }
   };
 
-  // 8. Ignore change
+  // 8. Approve / Ignore Change
+  const handleApproveChange = async (changeId: string) => {
+    try {
+      await api.approveDiscoveryChange(changeId);
+      toast.success('Cambio aprobado', 'El cambio ha sido confirmado en el registro de auditoría.');
+      if (activeScan) selectScan(activeScan.id);
+    } catch (err: any) {
+      toast.error('Error al aprobar cambio', err.message);
+    }
+  };
+
   const handleIgnoreChange = async (changeId: string) => {
     try {
       await api.ignoreDiscoveryChange(changeId);
-      toast.info('Cambio ignorado', 'El dispositivo permanecerá sin registrar.');
+      toast.info('Cambio ignorado', 'El cambio ha sido descartado.');
       if (activeScan) selectScan(activeScan.id);
     } catch (err: any) {
       toast.error('Error al ignorar cambio', err.message);
     }
   };
 
+  // 9. Save Network Configuration
+  const handleSaveNetwork = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const parsedExcluded = networkForm.excludedIps
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      await api.saveDiscoveryNetwork({
+        id: networkForm.id || undefined,
+        name: networkForm.name,
+        cidr: networkForm.cidr,
+        description: networkForm.description || undefined,
+        excludedIps: parsedExcluded,
+        schedule: networkForm.schedule,
+        scanType: networkForm.scanType,
+        snmpCommunity: networkForm.snmpCommunity || undefined,
+      });
+
+      toast.success('Red guardada', 'Configuración de red para descubrimiento guardada con éxito.');
+      setIsNetworkModalOpen(false);
+      const updatedNets = await api.getDiscoveryNetworks();
+      setNetworks(updatedNets);
+    } catch (err: any) {
+      toast.error('Error al guardar red', err.message);
+    }
+  };
+
+  const handleDeleteNetwork = async (id: string) => {
+    try {
+      await api.deleteDiscoveryNetwork(id);
+      toast.info('Red eliminada', 'La configuración de red ha sido eliminada.');
+      const updatedNets = await api.getDiscoveryNetworks();
+      setNetworks(updatedNets);
+    } catch (err: any) {
+      toast.error('Error al eliminar red', err.message);
+    }
+  };
+
   // Filtered lists
   const newDevices = hosts.filter((h) => h.isNew);
-  const offlineChanges = changes.filter((c) => c.changeType === 'DEVICE_OFFLINE' || c.changeType === 'DEVICE_NOT_DETECTED');
+  const offlineChanges = changes.filter(
+    (c) => c.changeType === 'DEVICE_OFFLINE' || c.changeType === 'DEVICE_NOT_DETECTED'
+  );
+  const diffChanges = changes.filter(
+    (c) =>
+      c.changeType !== 'NEW_DEVICE' &&
+      c.changeType !== 'DEVICE_OFFLINE' &&
+      c.changeType !== 'DEVICE_NOT_DETECTED'
+  );
+
+  // Render Device Type Icon
+  const getDeviceIcon = (type?: string | null) => {
+    const t = (type || '').toLowerCase();
+    if (t.includes('printer')) return <Printer className="w-4 h-4 text-[#F59E0B]" />;
+    if (t.includes('router') || t.includes('gateway')) return <Router className="w-4 h-4 text-[#3B82F6]" />;
+    if (t.includes('firewall')) return <ShieldCheck className="w-4 h-4 text-[#EF4444]" />;
+    if (t.includes('switch')) return <Network className="w-4 h-4 text-[#06B6D4]" />;
+    if (t.includes('access point')) return <Radio className="w-4 h-4 text-[#8B5CF6]" />;
+    if (t.includes('nas') || t.includes('storage')) return <HardDrive className="w-4 h-4 text-[#10B981]" />;
+    if (t.includes('virtualization') || t.includes('docker')) return <Layers className="w-4 h-4 text-[#EC4899]" />;
+    if (t.includes('camera')) return <Camera className="w-4 h-4 text-[#F97316]" />;
+    return <Server className="w-4 h-4 text-[#94A3B8]" />;
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -262,10 +419,10 @@ export const DiscoveryPage: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold tracking-tight text-[#F1F5F9] flex items-center gap-2.5">
             <Radar className="w-5 h-5 text-[#06B6D4] animate-pulse" />
-            Network Discovery Engine
+            Advanced Network Discovery
           </h1>
           <p className="text-xs text-[#94A3B8] mt-0.5">
-            Descubrimiento autónomo de hosts, sondeo de puertos TCP, auditoría de servicios y comparativa con el inventario
+            Descubrimiento autónomo de red sin agente (ICMP, ARP, TCP, DNS, SNMP v2c/v3, SSH, WinRM), clasificación inteligente y detección de cambios
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -280,84 +437,358 @@ export const DiscoveryPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Discovery Summary KPI Ribbon (As requested in architecture spec) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        <Card className="p-3 bg-[#0F141B] border-[#252D38]">
+          <span className="text-[10px] uppercase font-semibold text-[#64748B]">Red</span>
+          <div className="font-mono font-bold text-xs text-[#F1F5F9] truncate mt-1">
+            {activeScan?.networkCidr || networkCidr}
+          </div>
+        </Card>
+
+        <Card className="p-3 bg-[#0F141B] border-[#252D38]">
+          <span className="text-[10px] uppercase font-semibold text-[#64748B]">Último Scan</span>
+          <div className="text-xs text-[#94A3B8] truncate mt-1">
+            {activeScan ? new Date(activeScan.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+          </div>
+        </Card>
+
+        <Card className="p-3 bg-[#0F141B] border-[#252D38]">
+          <span className="text-[10px] uppercase font-semibold text-[#64748B]">Estado</span>
+          <div className="mt-1">
+            <span
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                activeScan?.status === 'COMPLETED'
+                  ? 'bg-[#22C55E]/10 text-[#22C55E]'
+                  : activeScan?.status === 'RUNNING'
+                  ? 'bg-[#06B6D4]/10 text-[#06B6D4] animate-pulse'
+                  : 'bg-[#EF4444]/10 text-[#EF4444]'
+              }`}
+            >
+              {activeScan?.status || 'IDLE'}
+            </span>
+          </div>
+        </Card>
+
+        <Card className="p-3 bg-[#0F141B] border-[#252D38]">
+          <span className="text-[10px] uppercase font-semibold text-[#64748B]">Encontrados</span>
+          <div className="font-mono font-bold text-sm text-[#22C55E] mt-0.5">
+            {activeScan?.activeHosts || hosts.length || 0}
+          </div>
+        </Card>
+
+        <Card className="p-3 bg-[#0F141B] border-[#252D38]">
+          <span className="text-[10px] uppercase font-semibold text-[#64748B]">Nuevos</span>
+          <div className="font-mono font-bold text-sm text-[#06B6D4] mt-0.5">
+            {activeScan?.newDevices || newDevices.length || 0}
+          </div>
+        </Card>
+
+        <Card className="p-3 bg-[#0F141B] border-[#252D38]">
+          <span className="text-[10px] uppercase font-semibold text-[#64748B]">Offline</span>
+          <div className="font-mono font-bold text-sm text-[#EF4444] mt-0.5">
+            {activeScan?.missingDevices || offlineChanges.length || 0}
+          </div>
+        </Card>
+
+        <Card className="p-3 bg-[#0F141B] border-[#252D38]">
+          <span className="text-[10px] uppercase font-semibold text-[#64748B]">Cambios</span>
+          <div className="font-mono font-bold text-sm text-[#F59E0B] mt-0.5">
+            {activeScan?.changedDevices || diffChanges.length || 0}
+          </div>
+        </Card>
+
+        <Card className="p-3 bg-[#0F141B] border-[#252D38]">
+          <span className="text-[10px] uppercase font-semibold text-[#64748B]">Errores</span>
+          <div className="font-mono font-bold text-sm text-[#94A3B8] mt-0.5">
+            {activeScan?.errorMessage ? 1 : 0}
+          </div>
+        </Card>
+      </div>
+
       {/* Discovery Launcher Control Card */}
       <Card className="p-5 border-[#06B6D4]/20 bg-gradient-to-r from-[#0F141B] via-[#151B23] to-[#0F141B]">
-        <form onSubmit={handleStartScan} className="flex flex-col md:flex-row items-end gap-4">
-          <div className="flex-1 w-full space-y-1.5">
-            <label className="text-xs font-semibold text-[#F1F5F9] flex items-center gap-2">
-              <span>Red CIDR Objetivo</span>
-              <span className="text-[11px] text-[#64748B] font-normal">(Ej: 192.168.1.0/24, 10.0.0.0/24)</span>
-            </label>
-            <Input
-              value={networkCidr}
-              onChange={(e) => setNetworkCidr(e.target.value)}
-              placeholder="192.168.1.0/24"
-              className="font-mono text-xs"
-              required
-            />
-          </div>
+        <form onSubmit={handleStartScan} className="space-y-4">
+          <div className="flex flex-col md:flex-row items-end gap-4">
+            <div className="flex-1 w-full space-y-1.5">
+              <label className="text-xs font-semibold text-[#F1F5F9] flex items-center gap-2">
+                <span>Red CIDR Objetivo</span>
+                <span className="text-[11px] text-[#64748B] font-normal">(Ej: 192.168.1.0/24, 10.0.0.0/24)</span>
+              </label>
+              <Input
+                value={networkCidr}
+                onChange={(e) => setNetworkCidr(e.target.value)}
+                placeholder="192.168.1.0/24"
+                className="font-mono text-xs"
+                required
+              />
+            </div>
 
-          <div className="w-full md:w-56 space-y-1.5">
-            <label className="text-xs font-semibold text-[#F1F5F9]">Modo de Descubrimiento</label>
-            <div className="grid grid-cols-2 gap-2 bg-[#0B0F14] p-1 rounded-lg border border-[#252D38]">
-              <button
+            <div className="w-full md:w-64 space-y-1.5">
+              <label className="text-xs font-semibold text-[#F1F5F9]">Modo de Sondeo</label>
+              <div className="grid grid-cols-3 gap-1.5 bg-[#0B0F14] p-1 rounded-lg border border-[#252D38]">
+                <button
+                  type="button"
+                  onClick={() => setScanType('BASIC')}
+                  className={`py-1.5 text-[11px] font-medium rounded transition-all ${
+                    scanType === 'BASIC'
+                      ? 'bg-[#151B23] text-[#06B6D4] border border-[#06B6D4]/40 font-bold'
+                      : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                  }`}
+                >
+                  Básico (12P)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScanType('FULL')}
+                  className={`py-1.5 text-[11px] font-medium rounded transition-all ${
+                    scanType === 'FULL'
+                      ? 'bg-[#151B23] text-[#3B82F6] border border-[#3B82F6]/40 font-bold'
+                      : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                  }`}
+                >
+                  Completo (30P)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScanType('CUSTOM')}
+                  className={`py-1.5 text-[11px] font-medium rounded transition-all ${
+                    scanType === 'CUSTOM'
+                      ? 'bg-[#151B23] text-[#8B5CF6] border border-[#8B5CF6]/40 font-bold'
+                      : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                  }`}
+                >
+                  Custom
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <Button
                 type="button"
-                onClick={() => setScanType('BASIC')}
-                className={`py-1.5 text-xs font-medium rounded transition-all ${
-                  scanType === 'BASIC'
-                    ? 'bg-[#151B23] text-[#06B6D4] border border-[#06B6D4]/40'
-                    : 'text-[#94A3B8] hover:text-[#F1F5F9]'
-                }`}
+                variant="secondary"
+                size="md"
+                icon={<Sliders className="w-4 h-4" />}
+                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
               >
-                Básico (6 Puertos)
-              </button>
-              <button
-                type="button"
-                onClick={() => setScanType('FULL')}
-                className={`py-1.5 text-xs font-medium rounded transition-all ${
-                  scanType === 'FULL'
-                    ? 'bg-[#151B23] text-[#3B82F6] border border-[#3B82F6]/40'
-                    : 'text-[#94A3B8] hover:text-[#F1F5F9]'
-                }`}
+                {showAdvancedSettings ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </Button>
+
+              <Can
+                permission="DISCOVERY_RUN"
+                fallback={
+                  <div className="text-xs text-[#64748B] py-2 px-3 bg-[#0B0F14] border border-[#252D38] rounded-lg">
+                    Solo lectura
+                  </div>
+                }
               >
-                Completo (19+ P)
-              </button>
+                {activeScan && activeScan.status === 'RUNNING' ? (
+                  <Button
+                    type="button"
+                    variant="danger"
+                    icon={<StopCircle className="w-4 h-4" />}
+                    onClick={handleCancelScan}
+                  >
+                    Detener
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    icon={<Play className="w-4 h-4 fill-current" />}
+                    disabled={isStartingScan}
+                  >
+                    {isStartingScan ? 'Iniciando...' : 'Escanear Red'}
+                  </Button>
+                )}
+              </Can>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <Can
-              permission="DISCOVERY_RUN"
-              fallback={
-                <div className="text-xs text-[#64748B] py-2 px-3 bg-[#0B0F14] border border-[#252D38] rounded-lg">
-                  Solo lectura (sin permiso de escaneo)
+          {/* Advanced Settings Drawer */}
+          {showAdvancedSettings && (
+            <div className="p-4 bg-[#0B0F14]/90 rounded-xl border border-[#252D38] space-y-4 text-xs animate-in fade-in">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <label className="font-semibold text-[#F1F5F9]">IPs y Rangos Excluidos</label>
+                  <Input
+                    value={excludedIps}
+                    onChange={(e) => setExcludedIps(e.target.value)}
+                    placeholder="192.168.1.1, 192.168.1.254"
+                    className="font-mono text-xs"
+                  />
                 </div>
-              }
-            >
-              {activeScan && activeScan.status === 'RUNNING' ? (
-                <Button
-                  type="button"
-                  variant="danger"
-                  icon={<StopCircle className="w-4 h-4" />}
-                  onClick={handleCancelScan}
-                >
-                  Detener
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  variant="primary"
-                  icon={<Play className="w-4 h-4 fill-current" />}
-                  disabled={isStartingScan}
-                >
-                  {isStartingScan ? 'Iniciando...' : 'Escanear Red'}
-                </Button>
+
+                {scanType === 'CUSTOM' && (
+                  <div className="space-y-1">
+                    <label className="font-semibold text-[#F1F5F9]">Puertos Personalizados</label>
+                    <Input
+                      value={customPorts}
+                      onChange={(e) => setCustomPorts(e.target.value)}
+                      placeholder="22, 80, 443, 8006, 9000"
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-[#F1F5F9]">SNMP Community (v2c)</label>
+                  <Input
+                    value={snmpCommunity}
+                    onChange={(e) => setSnmpCommunity(e.target.value)}
+                    placeholder="public"
+                    className="font-mono text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-[#F1F5F9]">Versión SNMP</label>
+                  <Select
+                    value={snmpVersion}
+                    onChange={(e) => setSnmpVersion(e.target.value as 'v2c' | 'v3')}
+                    options={[
+                      { value: 'v2c', label: 'SNMP v2c (Community)' },
+                      { value: 'v3', label: 'SNMP v3 (USM / AuthPriv)' },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {/* Methods Checkboxes */}
+              <div className="pt-2 border-t border-[#252D38]">
+                <span className="font-semibold text-[#64748B] uppercase tracking-wider text-[10px] block mb-2">
+                  Métodos de Descubrimiento Habilitados
+                </span>
+                <div className="flex flex-wrap gap-4 text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={methods.icmp}
+                      onChange={(e) => setMethods({ ...methods, icmp: e.target.checked })}
+                      className="rounded bg-[#151B23] border-[#252D38] text-[#06B6D4]"
+                    />
+                    <span className="text-[#F1F5F9]">ICMP Ping</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={methods.arp}
+                      onChange={(e) => setMethods({ ...methods, arp: e.target.checked })}
+                      className="rounded bg-[#151B23] border-[#252D38] text-[#06B6D4]"
+                    />
+                    <span className="text-[#F1F5F9]">ARP (MAC / Vendor)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={methods.tcp}
+                      onChange={(e) => setMethods({ ...methods, tcp: e.target.checked })}
+                      className="rounded bg-[#151B23] border-[#252D38] text-[#06B6D4]"
+                    />
+                    <span className="text-[#F1F5F9]">TCP Port Probe</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={methods.dns}
+                      onChange={(e) => setMethods({ ...methods, dns: e.target.checked })}
+                      className="rounded bg-[#151B23] border-[#252D38] text-[#06B6D4]"
+                    />
+                    <span className="text-[#F1F5F9]">DNS Reverse PTR</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={methods.snmp}
+                      onChange={(e) => setMethods({ ...methods, snmp: e.target.checked })}
+                      className="rounded bg-[#151B23] border-[#252D38] text-[#06B6D4]"
+                    />
+                    <span className="text-[#F1F5F9]">SNMP (sysDescr / Interfaces)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={methods.ssh}
+                      onChange={(e) => setMethods({ ...methods, ssh: e.target.checked })}
+                      className="rounded bg-[#151B23] border-[#252D38] text-[#06B6D4]"
+                    />
+                    <span className="text-[#F1F5F9]">SSH Remote (Linux/Unix)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={methods.winrm}
+                      onChange={(e) => setMethods({ ...methods, winrm: e.target.checked })}
+                      className="rounded bg-[#151B23] border-[#252D38] text-[#06B6D4]"
+                    />
+                    <span className="text-[#F1F5F9]">WinRM / WMI (Windows)</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* SSH / WinRM Credentials if enabled */}
+              {(methods.ssh || methods.winrm) && (
+                <div className="pt-2 border-t border-[#252D38] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {methods.ssh && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="font-semibold text-[#F1F5F9]">Usuario SSH</label>
+                        <Input
+                          value={sshUser}
+                          onChange={(e) => setSshUser(e.target.value)}
+                          placeholder="root / admin"
+                          className="font-mono text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="font-semibold text-[#F1F5F9]">Password SSH</label>
+                        <Input
+                          type="password"
+                          value={sshPassword}
+                          onChange={(e) => setSshPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="font-mono text-xs"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {methods.winrm && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="font-semibold text-[#F1F5F9]">Usuario WinRM</label>
+                        <Input
+                          value={winrmUser}
+                          onChange={(e) => setWinrmUser(e.target.value)}
+                          placeholder="Administrator"
+                          className="font-mono text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="font-semibold text-[#F1F5F9]">Password WinRM</label>
+                        <Input
+                          type="password"
+                          value={winrmPassword}
+                          onChange={(e) => setWinrmPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="font-mono text-xs"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
-            </Can>
-          </div>
+            </div>
+          )}
         </form>
 
-        {/* Live Progress Card (if scan active or recently finished) */}
+        {/* Live Progress Card */}
         {activeScan && (
           <div className="mt-5 pt-4 border-t border-[#252D38] space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
@@ -379,13 +810,14 @@ export const DiscoveryPage: React.FC = () => {
                     : `Escaneo ${activeScan.status.toLowerCase()}`}
                 </span>
                 <span className="text-[#64748B] font-mono">
-                  ({activeScan.scannedHosts} / {activeScan.totalHosts} hosts verificados)
+                  ({activeScan.scannedHosts} / {activeScan.totalHosts} hosts sondeados)
                 </span>
               </div>
               <div className="flex items-center gap-4 text-[#94A3B8] font-mono text-[11px]">
                 <span>Activos: <strong className="text-[#22C55E]">{activeScan.activeHosts}</strong></span>
                 <span>Nuevos: <strong className="text-[#06B6D4]">{activeScan.newDevices}</strong></span>
-                <span>No detectados: <strong className="text-[#EF4444]">{activeScan.missingDevices}</strong></span>
+                <span>Offline: <strong className="text-[#EF4444]">{activeScan.missingDevices}</strong></span>
+                <span>Cambios: <strong className="text-[#F59E0B]">{activeScan.changedDevices}</strong></span>
                 {activeScan.durationMs && (
                   <span>Duración: <strong className="text-[#F1F5F9]">{(activeScan.durationMs / 1000).toFixed(1)}s</strong></span>
                 )}
@@ -410,62 +842,86 @@ export const DiscoveryPage: React.FC = () => {
       </Card>
 
       {/* Discovery Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-[#252D38] pb-1">
+      <div className="flex items-center gap-2 border-b border-[#252D38] pb-1 overflow-x-auto">
         <button
           onClick={() => setActiveTab('discovered')}
-          className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-all flex items-center gap-2 ${
+          className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'discovered'
               ? 'text-[#06B6D4] border-b-2 border-[#06B6D4] bg-[#151B23]/50'
               : 'text-[#94A3B8] hover:text-[#F1F5F9]'
           }`}
         >
           <Server className="w-3.5 h-3.5" />
-          Dispositivos Descubiertos ({hosts.length})
+          Dispositivos ({hosts.length})
         </button>
 
         <button
           onClick={() => setActiveTab('new')}
-          className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-all flex items-center gap-2 ${
+          className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'new'
               ? 'text-[#F59E0B] border-b-2 border-[#F59E0B] bg-[#151B23]/50'
               : 'text-[#94A3B8] hover:text-[#F1F5F9]'
           }`}
         >
           <AlertOctagon className="w-3.5 h-3.5 text-[#F59E0B]" />
-          Nuevos Detectados ({newDevices.length})
+          Nuevos ({newDevices.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('changes')}
+          className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'changes'
+              ? 'text-[#3B82F6] border-b-2 border-[#3B82F6] bg-[#151B23]/50'
+              : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+          }`}
+        >
+          <ArrowRightLeft className="w-3.5 h-3.5 text-[#3B82F6]" />
+          Cambios & Diffs ({diffChanges.length})
         </button>
 
         <button
           onClick={() => setActiveTab('offline')}
-          className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-all flex items-center gap-2 ${
+          className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'offline'
               ? 'text-[#EF4444] border-b-2 border-[#EF4444] bg-[#151B23]/50'
               : 'text-[#94A3B8] hover:text-[#F1F5F9]'
           }`}
         >
           <EyeOff className="w-3.5 h-3.5 text-[#EF4444]" />
-          No Detectados ({offlineChanges.length})
+          Offline ({offlineChanges.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('networks')}
+          className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'networks'
+              ? 'text-[#10B981] border-b-2 border-[#10B981] bg-[#151B23]/50'
+              : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+          }`}
+        >
+          <Network className="w-3.5 h-3.5 text-[#10B981]" />
+          Redes & Programación ({networks.length})
         </button>
 
         <button
           onClick={() => setActiveTab('history')}
-          className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-all flex items-center gap-2 ${
+          className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'history'
-              ? 'text-[#3B82F6] border-b-2 border-[#3B82F6] bg-[#151B23]/50'
+              ? 'text-[#8B5CF6] border-b-2 border-[#8B5CF6] bg-[#151B23]/50'
               : 'text-[#94A3B8] hover:text-[#F1F5F9]'
           }`}
         >
-          <History className="w-3.5 h-3.5 text-[#3B82F6]" />
-          Historial de Escaneos ({scansHistory.length})
+          <History className="w-3.5 h-3.5 text-[#8B5CF6]" />
+          Historial ({scansHistory.length})
         </button>
       </div>
 
-      {/* Tab 1: Discovered Hosts Table */}
+      {/* Tab 1: Discovered Hosts Table (DEVICE DISCOVERY VIEW) */}
       {activeTab === 'discovered' && (
         <Card className="p-0 overflow-hidden">
           {isLoadingHosts ? (
             <div className="p-6">
-              <TableSkeleton rows={6} cols={6} />
+              <TableSkeleton rows={6} cols={7} />
             </div>
           ) : hosts.length === 0 ? (
             <div className="text-center py-16 text-[#64748B] text-xs">
@@ -477,11 +933,12 @@ export const DiscoveryPage: React.FC = () => {
                 <thead>
                   <tr className="bg-[#0B0F14]/80 text-[#64748B] font-semibold border-b border-[#252D38] uppercase tracking-wider text-[10px]">
                     <th className="py-3 px-4">Dirección IP</th>
-                    <th className="py-3 px-4">Hostname / DNS</th>
+                    <th className="py-3 px-4">Hostname</th>
+                    <th className="py-3 px-4">Tipo</th>
+                    <th className="py-3 px-4">Fabricante & OS</th>
+                    <th className="py-3 px-4">Puertos & Servicios</th>
                     <th className="py-3 px-4">Estado</th>
-                    <th className="py-3 px-4">Puertos Abiertos & Servicios</th>
-                    <th className="py-3 px-4">Latencia</th>
-                    <th className="py-3 px-4 text-right">Inventario</th>
+                    <th className="py-3 px-4 text-right">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#252D38]">
@@ -489,17 +946,22 @@ export const DiscoveryPage: React.FC = () => {
                     <tr key={host.id} className="hover:bg-[#151B23]/40 transition-colors">
                       <td className="py-3 px-4 font-mono font-semibold text-[#F1F5F9]">
                         {host.ip}
-                      </td>
-                      <td className="py-3 px-4 text-[#94A3B8]">
-                        {host.hostname || (
-                          <span className="text-[#64748B] italic">Sin DNS inverso</span>
+                        {host.macAddress && (
+                          <div className="text-[10px] text-[#64748B] font-mono">{host.macAddress}</div>
                         )}
                       </td>
+                      <td className="py-3 px-4 text-[#94A3B8]">
+                        <span className="font-semibold text-[#F1F5F9]">{host.hostname || 'Desconocido'}</span>
+                      </td>
                       <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/20">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
-                          ONLINE
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#1A212B] text-[#F1F5F9] text-[11px] border border-[#252D38]">
+                          {getDeviceIcon(host.deviceType)}
+                          {host.deviceType || 'Unknown'}
                         </span>
+                      </td>
+                      <td className="py-3 px-4 text-[#94A3B8]">
+                        <div>{host.vendor || 'Desconocido'}</div>
+                        {host.osGuess && <div className="text-[10px] text-[#64748B]">{host.osGuess}</div>}
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex flex-wrap gap-1.5 max-w-md">
@@ -518,8 +980,17 @@ export const DiscoveryPage: React.FC = () => {
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-4 font-mono text-[11px] text-[#64748B]">
-                        {host.responseTimeMs ? `${host.responseTimeMs} ms` : '-'}
+                      <td className="py-3 px-4">
+                        {host.isNew ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/30">
+                            NEW
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/20">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
+                            ONLINE
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right">
                         {host.isNew ? (
@@ -563,15 +1034,21 @@ export const DiscoveryPage: React.FC = () => {
               {newDevices.map((host) => (
                 <Card key={host.id} className="p-4 border-[#F59E0B]/30 bg-[#0F141B]">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-sm font-bold text-[#F1F5F9]">{host.ip}</span>
                         <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/30">
                           NUEVO DISPOSITIVO
                         </span>
                       </div>
-                      <div className="text-xs text-[#94A3B8] mt-1">
+                      <div className="text-xs text-[#94A3B8]">
                         Hostname: <strong className="text-[#F1F5F9]">{host.hostname || 'No disponible'}</strong>
+                      </div>
+                      <div className="text-xs text-[#94A3B8]">
+                        Tipo clasificado: <strong className="text-[#06B6D4]">{host.deviceType || 'Unknown'}</strong>
+                      </div>
+                      <div className="text-xs text-[#94A3B8]">
+                        Fabricante: <strong className="text-[#F1F5F9]">{host.vendor || 'Desconocido'}</strong>
                       </div>
                     </div>
                   </div>
@@ -594,11 +1071,7 @@ export const DiscoveryPage: React.FC = () => {
 
                   <div className="mt-4 pt-3 border-t border-[#252D38] flex items-center justify-end gap-2.5">
                     <Can permission="DISCOVERY_IMPORT">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleIgnoreChange(host.id)}
-                      >
+                      <Button variant="ghost" size="sm" onClick={() => handleIgnoreChange(host.id)}>
                         Ignorar
                       </Button>
                       <Button
@@ -607,7 +1080,7 @@ export const DiscoveryPage: React.FC = () => {
                         icon={<Plus className="w-3.5 h-3.5" />}
                         onClick={() => handleOpenImport(host)}
                       >
-                        Añadir al Inventario
+                        Aprobar e Incorporar
                       </Button>
                     </Can>
                   </div>
@@ -618,7 +1091,88 @@ export const DiscoveryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 3: Missing / Offline Devices */}
+      {/* Tab 3: Changes & Diffs */}
+      {activeTab === 'changes' && (
+        <Card className="p-0 overflow-hidden">
+          {diffChanges.length === 0 ? (
+            <div className="text-center py-16 text-[#64748B] text-xs">
+              <CheckCircle2 className="w-8 h-8 text-[#22C55E] mx-auto mb-2 opacity-80" />
+              No se han detectado cambios de configuración ni hardware en este escaneo.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-[#0B0F14]/80 text-[#64748B] font-semibold border-b border-[#252D38] uppercase tracking-wider text-[10px]">
+                    <th className="py-3 px-4">Dispositivo</th>
+                    <th className="py-3 px-4">Tipo de Cambio</th>
+                    <th className="py-3 px-4">Valor Anterior &bull; Nuevo</th>
+                    <th className="py-3 px-4">Detalle</th>
+                    <th className="py-3 px-4">Estado</th>
+                    <th className="py-3 px-4 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#252D38]">
+                  {diffChanges.map((change) => (
+                    <tr key={change.id} className="hover:bg-[#151B23]/40 transition-colors">
+                      <td className="py-3 px-4 font-semibold text-[#F1F5F9]">
+                        {change.hostname || change.machine?.hostname || 'Host'}
+                        <div className="font-mono text-[10px] text-[#64748B]">{change.ip}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#1A212B] text-[#F59E0B] border border-[#252D38]">
+                          {change.changeType}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px]">
+                        <span className="text-[#EF4444]">{change.oldValue || '-'}</span>
+                        <span className="text-[#64748B] mx-1.5">&rarr;</span>
+                        <span className="text-[#22C55E]">{change.newValue || '-'}</span>
+                      </td>
+                      <td className="py-3 px-4 text-[#94A3B8] max-w-sm">{change.details}</td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            change.status === 'APPROVED'
+                              ? 'bg-[#22C55E]/10 text-[#22C55E]'
+                              : change.status === 'IGNORED'
+                              ? 'bg-[#64748B]/10 text-[#64748B]'
+                              : 'bg-[#F59E0B]/10 text-[#F59E0B]'
+                          }`}
+                        >
+                          {change.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        {change.status === 'PENDING' && (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleApproveChange(change.id)}
+                            >
+                              Aprobar
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleIgnoreChange(change.id)}
+                            >
+                              Ignorar
+                            </Button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Tab 4: Missing / Offline Devices */}
       {activeTab === 'offline' && (
         <Card className="p-0 overflow-hidden">
           {offlineChanges.length === 0 ? (
@@ -660,7 +1214,91 @@ export const DiscoveryPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Tab 4: Scans History */}
+      {/* Tab 5: Configured Networks & Schedules */}
+      {activeTab === 'networks' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-[#94A3B8]">
+              Subredes configuradas para escaneo continuo y programado
+            </span>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Plus className="w-3.5 h-3.5" />}
+              onClick={() => {
+                setNetworkForm({
+                  id: '',
+                  name: '',
+                  cidr: '',
+                  description: '',
+                  excludedIps: '',
+                  schedule: 'MANUAL',
+                  scanType: 'BASIC',
+                  snmpCommunity: 'public',
+                });
+                setIsNetworkModalOpen(true);
+              }}
+            >
+              Configurar Nueva Red
+            </Button>
+          </div>
+
+          {networks.length === 0 ? (
+            <Card className="p-8 text-center text-[#64748B] text-xs">
+              No hay redes guardadas para escaneo periódico. Añade una red para programar descubrimientos.
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {networks.map((net) => (
+                <Card key={net.id} className="p-4 bg-[#0F141B] border-[#252D38] space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className="font-bold text-[#F1F5F9] text-sm">{net.name}</h4>
+                      <div className="font-mono text-xs text-[#06B6D4] mt-0.5">{net.cidr}</div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#151B23] text-[#22C55E] border border-[#252D38]">
+                      {net.schedule}
+                    </span>
+                  </div>
+
+                  {net.description && (
+                    <p className="text-xs text-[#94A3B8]">{net.description}</p>
+                  )}
+
+                  {net.excludedIps && net.excludedIps.length > 0 && (
+                    <div className="text-[11px] text-[#64748B]">
+                      Exclusiones: {net.excludedIps.join(', ')}
+                    </div>
+                  )}
+
+                  <div className="pt-3 border-t border-[#252D38] flex items-center justify-between">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<Play className="w-3.5 h-3.5" />}
+                      onClick={() => {
+                        setNetworkCidr(net.cidr);
+                        setExcludedIps(net.excludedIps.join(', '));
+                        setScanType(net.scanType);
+                      }}
+                    >
+                      Cargar en Launcher
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Trash2 className="w-3.5 h-3.5 text-[#EF4444]" />}
+                      onClick={() => handleDeleteNetwork(net.id)}
+                    />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 6: Scans History */}
       {activeTab === 'history' && (
         <Card className="p-0 overflow-hidden">
           {isLoadingScans ? (
@@ -681,7 +1319,7 @@ export const DiscoveryPage: React.FC = () => {
                     <th className="py-3 px-4">Estado</th>
                     <th className="py-3 px-4">Hosts Activos</th>
                     <th className="py-3 px-4">Nuevos</th>
-                    <th className="py-3 px-4">No Detectados</th>
+                    <th className="py-3 px-4">Offline</th>
                     <th className="py-3 px-4">Fecha & Duración</th>
                     <th className="py-3 px-4 text-right">Acción</th>
                   </tr>
@@ -745,6 +1383,76 @@ export const DiscoveryPage: React.FC = () => {
         </Card>
       )}
 
+      {/* Network Configuration Modal */}
+      <Modal
+        isOpen={isNetworkModalOpen}
+        onClose={() => setIsNetworkModalOpen(false)}
+        title="Configurar Red de Descubrimiento"
+        maxWidth="lg"
+      >
+        <form onSubmit={handleSaveNetwork} className="space-y-4">
+          <Input
+            label="Nombre de la Red *"
+            value={networkForm.name}
+            onChange={(e) => setNetworkForm({ ...networkForm, name: e.target.value })}
+            placeholder="Subred Servidores Datacenter"
+            required
+          />
+
+          <Input
+            label="Red CIDR *"
+            value={networkForm.cidr}
+            onChange={(e) => setNetworkForm({ ...networkForm, cidr: e.target.value })}
+            placeholder="192.168.1.0/24"
+            className="font-mono text-xs"
+            required
+          />
+
+          <Input
+            label="IPs / Rangos a Excluir"
+            value={networkForm.excludedIps}
+            onChange={(e) => setNetworkForm({ ...networkForm, excludedIps: e.target.value })}
+            placeholder="192.168.1.1, 192.168.1.254"
+            className="font-mono text-xs"
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Frecuencia de Escaneo"
+              value={networkForm.schedule}
+              onChange={(e) => setNetworkForm({ ...networkForm, schedule: e.target.value as any })}
+              options={[
+                { value: 'MANUAL', label: 'Manual (Bajo Demanda)' },
+                { value: 'EVERY_15_MIN', label: 'Cada 15 minutos' },
+                { value: 'EVERY_30_MIN', label: 'Cada 30 minutos' },
+                { value: 'EVERY_1_HOUR', label: 'Cada 1 hora' },
+                { value: 'EVERY_6_HOURS', label: 'Cada 6 horas' },
+                { value: 'DAILY', label: 'Diariamente' },
+              ]}
+            />
+
+            <Select
+              label="Modo de Escaneo"
+              value={networkForm.scanType}
+              onChange={(e) => setNetworkForm({ ...networkForm, scanType: e.target.value as any })}
+              options={[
+                { value: 'BASIC', label: 'Básico (12 Puertos)' },
+                { value: 'FULL', label: 'Completo (30+ Puertos)' },
+              ]}
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#252D38]">
+            <Button type="button" variant="secondary" onClick={() => setIsNetworkModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" variant="primary">
+              Guardar Configuración
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Import Discovered Host Modal */}
       <Modal
         isOpen={isImportModalOpen}
@@ -756,13 +1464,16 @@ export const DiscoveryPage: React.FC = () => {
           <form onSubmit={handleImportSubmit} className="space-y-4">
             <div className="p-3 bg-[#0B0F14] rounded-lg border border-[#252D38] text-xs flex items-center justify-between">
               <div>
-                <span className="text-[#64748B]">Dirección IP Detectada:</span>
+                <span className="text-[#64748B]">IP Detectada:</span>
                 <span className="ml-2 font-mono font-bold text-[#06B6D4]">{selectedHostToImport.ip}</span>
+                {selectedHostToImport.macAddress && (
+                  <span className="ml-2 font-mono text-[#94A3B8]">({selectedHostToImport.macAddress})</span>
+                )}
               </div>
               <div>
-                <span className="text-[#64748B]">Puertos Abiertos:</span>
-                <span className="ml-2 font-mono text-[#22C55E]">
-                  {selectedHostToImport.ports.map((p) => p.portNumber).join(', ') || 'Ninguno'}
+                <span className="text-[#64748B]">Clasificación:</span>
+                <span className="ml-2 font-bold text-[#22C55E]">
+                  {selectedHostToImport.deviceType || 'Unknown'}
                 </span>
               </div>
             </div>
@@ -805,7 +1516,7 @@ export const DiscoveryPage: React.FC = () => {
                 label="Fabricante / Vendor"
                 value={importForm.manufacturer}
                 onChange={(e) => setImportForm({ ...importForm, manufacturer: e.target.value })}
-                placeholder="Dell, Cisco, HP..."
+                placeholder="Dell, Cisco, HP, Fortinet..."
               />
             </div>
 
@@ -854,3 +1565,5 @@ export const DiscoveryPage: React.FC = () => {
     </div>
   );
 };
+
+export default DiscoveryPage;

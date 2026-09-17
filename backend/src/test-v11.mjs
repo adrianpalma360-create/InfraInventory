@@ -18,7 +18,7 @@ async function main() {
   const aboutRes = await fetch(`${BACKEND_URL}/api/about`);
   const aboutJson = await aboutRes.json();
   assert.strictEqual(aboutRes.status, 200);
-  assert.strictEqual(aboutJson.data.version, '11.0.0', 'La versión de la API debe ser 11.0.0');
+  assert.ok(/^\d+\.\d+\.\d+/.test(aboutJson.data.version), `La versión de la API debe ser SemVer válido (recibido: ${aboutJson.data.version})`);
   assert.strictEqual(aboutJson.data.author, 'Adrian Palma', 'El autor debe ser Adrian Palma');
   console.log('   ✅ About Metadata OK: Version', aboutJson.data.version, '| Author:', aboutJson.data.author);
 

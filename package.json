@@ -1,0 +1,35 @@
+{
+  "name": "infrainventory",
+  "version": "11.2.0",
+  "description": "InfraInventory - Enterprise Infrastructure & NOC Platform",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "version:get": "node scripts/release.mjs current",
+    "version:check": "node scripts/release.mjs check",
+    "version:bump": "node scripts/release.mjs bump",
+    "version:minor": "node scripts/release.mjs bump minor",
+    "version:major": "node scripts/release.mjs bump major",
+    "version:set": "node scripts/release.mjs set",
+    "version:sync": "node scripts/release.mjs sync",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend run build",
+    "build:discovery": "npm --prefix discovery run build",
+    "build:monitoring": "npm --prefix monitoring-worker run build",
+    "build": "npm run build:frontend && npm run build:backend && npm run build:discovery && npm run build:monitoring",
+    "test:discovery": "npm --prefix discovery test",
+    "test:backend": "npm --prefix backend test",
+    "test": "npm run test:discovery && npm run test:backend"
+  },
+  "keywords": [
+    "inventory",
+    "noc",
+    "monitoring",
+    "ipam",
+    "infrastructure",
+    "docker",
+    "portainer"
+  ],
+  "author": "Adrian Palma",
+  "license": "MIT"
+}

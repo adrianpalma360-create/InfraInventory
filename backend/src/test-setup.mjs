@@ -43,9 +43,9 @@ async function runSetupTestSuite() {
   const aboutRes = await fetch(`${BASE_URL}/about`);
   const aboutData = await aboutRes.json();
   console.log('   About:', aboutData.data);
-  assert.strictEqual(aboutData.data.version, '11.0.0');
+  assert.ok(/^\d+\.\d+\.\d+/.test(aboutData.data.version), `Versión SemVer válida esperada (recibido: ${aboutData.data.version})`);
   assert.strictEqual(aboutData.data.author, 'Adrian Palma');
-  console.log('   ✅ Metadatos institucionales y versión 11.0.0 intactos\n');
+  console.log(`   ✅ Metadatos institucionales y versión ${aboutData.data.version} intactos\n`);
 
   console.log('====================================================');
   console.log('🎉 TODAS LAS VERIFICACIONES DE SETUP PASARON AL 100%');

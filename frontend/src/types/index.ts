@@ -336,20 +336,50 @@ export interface DashboardSummary {
   recentChanges: ChangeLog[];
 }
 
-export type ScanType = 'BASIC' | 'FULL';
+export type ScanType = 'BASIC' | 'FULL' | 'CUSTOM';
 export type ScanStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 export type HostStatus = 'ONLINE' | 'OFFLINE' | 'UNRESPONSIVE';
 
 export type DiscoveryChangeType =
   | 'NEW_DEVICE'
   | 'IP_CHANGED'
+  | 'MAC_CHANGED'
+  | 'HOSTNAME_CHANGED'
+  | 'VENDOR_CHANGED'
+  | 'OS_CHANGED'
   | 'NEW_PORT'
   | 'PORT_CLOSED'
   | 'SERVICE_MODIFIED'
+  | 'HARDWARE_CHANGED'
   | 'DEVICE_OFFLINE'
   | 'DEVICE_NOT_DETECTED';
 
 export type DiscoveryChangeStatus = 'PENDING' | 'APPROVED' | 'IGNORED' | 'APPLIED';
+
+export interface DiscoveryNetwork {
+  id: string;
+  name: string;
+  cidr: string;
+  description?: string | null;
+  excludedIps: string[];
+  schedule: 'MANUAL' | 'EVERY_15_MIN' | 'EVERY_30_MIN' | 'EVERY_1_HOUR' | 'EVERY_6_HOURS' | 'DAILY';
+  scanType: ScanType;
+  customPorts: number[];
+  enabledMethods?: {
+    icmp?: boolean;
+    arp?: boolean;
+    tcp?: boolean;
+    dns?: boolean;
+    snmp?: boolean;
+    ssh?: boolean;
+    winrm?: boolean;
+  } | null;
+  snmpCommunity?: string | null;
+  lastScannedAt?: string | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface DiscoveredPort {
   id: string;
@@ -370,6 +400,7 @@ export interface DiscoveryHost {
   hostname?: string | null;
   vendor?: string | null;
   osGuess?: string | null;
+  deviceType?: string | null;
   status: HostStatus;
   responseTimeMs?: number | null;
   isNew: boolean;
@@ -415,8 +446,34 @@ export interface DiscoveryScan {
   errorMessage?: string | null;
   hosts?: DiscoveryHost[];
   changes?: DiscoveryChange[];
+  _count?: {
+    hosts: number;
+    changes: number;
+  };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface StartScanPayload {
+  networkCidr: string;
+  scanType?: ScanType;
+  customPorts?: number[];
+  excludedIps?: string[];
+  methods?: {
+    icmp?: boolean;
+    arp?: boolean;
+    tcp?: boolean;
+    dns?: boolean;
+    snmp?: boolean;
+    ssh?: boolean;
+    winrm?: boolean;
+  };
+  snmpCommunity?: string;
+  snmpVersion?: 'v2c' | 'v3';
+  credentials?: {
+    ssh?: { username: string; password?: string; port?: number };
+    winrm?: { username: string; password?: string; port?: number; useHttps?: boolean };
+  };
 }
 
 export interface ApiResponse<T> {

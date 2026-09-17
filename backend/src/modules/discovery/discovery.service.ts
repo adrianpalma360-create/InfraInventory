@@ -14,9 +14,51 @@ import {
   CreateScanInput,
   ImportDiscoveredHostInput,
   DiscoveryChangeQueryInput,
+  SaveDiscoveryNetworkInput,
 } from './discovery.schema.js';
 import { logChange } from '../../utils/changelog.js';
 import { isValidCIDR } from '../../utils/validators.js';
+
+interface RemoteHostResult {
+  ip: string;
+  hostname?: string;
+  macAddress?: string;
+  vendor?: string;
+  osGuess?: string;
+  deviceType?: string;
+  classificationReason?: string;
+  status: HostStatus;
+  responseTimeMs?: number;
+  ports: Array<{
+    portNumber: number;
+    protocol: PortProtocol;
+    state: PortState;
+    serviceName?: string;
+    banner?: string;
+  }>;
+  snmp?: {
+    available: boolean;
+    sysName?: string;
+    sysDescr?: string;
+    vendor?: string;
+    model?: string;
+  };
+  ssh?: {
+    available: boolean;
+    os?: string;
+    hostname?: string;
+  };
+  winrm?: {
+    available: boolean;
+    windowsVersion?: string;
+    statusMessage?: string;
+  };
+  hardware?: {
+    cpu?: string;
+    ram?: string;
+  };
+  methodsUsed?: string[];
+}
 
 interface RemoteScanResponse {
   scanId: string;
@@ -27,22 +69,7 @@ interface RemoteScanResponse {
   totalHosts: number;
   scannedHosts: number;
   activeHosts: number;
-  discoveredHosts: Array<{
-    ip: string;
-    hostname?: string;
-    macAddress?: string;
-    vendor?: string;
-    osGuess?: string;
-    status: HostStatus;
-    responseTimeMs?: number;
-    ports: Array<{
-      portNumber: number;
-      protocol: PortProtocol;
-      state: PortState;
-      serviceName?: string;
-      banner?: string;
-    }>;
-  }>;
+  discoveredHosts: RemoteHostResult[];
   startedAt: string;
   completedAt?: string;
   durationMs?: number;
@@ -59,7 +86,7 @@ export class DiscoveryService {
   // 1. Start a new Discovery Scan
   async startScan(input: CreateScanInput) {
     if (!isValidCIDR(input.networkCidr)) {
-      throw new Error(`Invalid CIDR format: ${input.networkCidr}. Example: 192.168.1.0/24`);
+      throw new Error(`Formato CIDR inválido: ${input.networkCidr}. Ejemplo: 192.168.1.0/24`);
     }
 
     // Check if there is already a running scan on this CIDR
@@ -78,7 +105,7 @@ export class DiscoveryService {
     const scan = await this.prisma.discoveryScan.create({
       data: {
         networkCidr: input.networkCidr,
-        scanType: input.scanType,
+        scanType: input.scanType as ScanType,
         status: ScanStatus.RUNNING,
         progress: 0,
       },
@@ -93,17 +120,27 @@ export class DiscoveryService {
           scanId: scan.id,
           cidr: scan.networkCidr,
           scanType: scan.scanType,
+          customPorts: input.customPorts,
+          excludedIps: input.excludedIps,
+          methods: input.methods,
+          snmp: input.snmpCommunity
+            ? {
+                community: input.snmpCommunity,
+                version: input.snmpVersion || 'v2c',
+              }
+            : undefined,
+          credentials: input.credentials,
         }),
       });
 
       if (!response.ok) {
         const errorData: any = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Discovery engine returned HTTP ${response.status}`);
+        throw new Error(errorData.error || `Motor de descubrimiento devolvió HTTP ${response.status}`);
       }
 
       // Background poll worker to track completion and process diffs
       this.monitorScanBackground(scan.id).catch((err) => {
-        console.error(`Error monitoring scan ${scan.id}:`, err);
+        console.error(`Error al monitorizar escaneo ${scan.id}:`, err);
       });
     } catch (err: any) {
       await this.prisma.discoveryScan.update({
@@ -162,7 +199,7 @@ export class DiscoveryService {
           break;
         }
       } catch (err) {
-        console.error(`Polling error for scan ${scanId}:`, err);
+        console.error(`Error de sondeo para escaneo ${scanId}:`, err);
       }
     }
   }
@@ -185,38 +222,55 @@ export class DiscoveryService {
     });
 
     const ipToMachineMap = new Map<string, (typeof existingMachines)[0]>();
+    const macToMachineMap = new Map<string, (typeof existingMachines)[0]>();
+    const hostnameToMachineMap = new Map<string, (typeof existingMachines)[0]>();
+
     for (const m of existingMachines) {
       if (m.primaryIp) ipToMachineMap.set(m.primaryIp, m);
+      if (m.macAddress) macToMachineMap.set(m.macAddress.toUpperCase(), m);
+      if (m.hostname) hostnameToMachineMap.set(m.hostname.toLowerCase(), m);
       for (const ipObj of m.ipAddresses) {
         ipToMachineMap.set(ipObj.ip, m);
+        if (ipObj.macAddress) macToMachineMap.set(ipObj.macAddress.toUpperCase(), m);
       }
     }
 
     const discoveredIps = new Set<string>();
 
-function cleanStr(val?: string | null): string | undefined {
-  if (val === undefined || val === null) return undefined;
-  const cleaned = val.replace(/\0/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim();
-  return cleaned.length > 0 ? cleaned : undefined;
-}
+    function cleanStr(val?: string | null): string | undefined {
+      if (val === undefined || val === null) return undefined;
+      const cleaned = val.replace(/\0/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim();
+      return cleaned.length > 0 ? cleaned : undefined;
+    }
 
     // Process each discovered host
     for (const host of results.discoveredHosts) {
       discoveredIps.add(host.ip);
-      const matchedMachine = ipToMachineMap.get(host.ip);
+
+      // Match machine by IP, then MAC, then Hostname
+      let matchedMachine = ipToMachineMap.get(host.ip);
+      if (!matchedMachine && host.macAddress) {
+        matchedMachine = macToMachineMap.get(host.macAddress.toUpperCase());
+      }
+      if (!matchedMachine && host.hostname) {
+        matchedMachine = hostnameToMachineMap.get(host.hostname.toLowerCase());
+      }
+
       const isNew = !matchedMachine;
 
       if (isNew) {
         newDevicesCount++;
       }
 
-      const cleanHostname = cleanStr(host.hostname) || (matchedMachine ? matchedMachine.hostname : undefined);
-      const cleanVendor = cleanStr(host.vendor);
-      const cleanOsGuess = cleanStr(host.osGuess);
-      const cleanMac = cleanStr(host.macAddress);
+      const cleanHostname =
+        cleanStr(host.hostname) || (matchedMachine ? matchedMachine.hostname : undefined);
+      const cleanVendor = cleanStr(host.vendor) || (matchedMachine ? matchedMachine.manufacturer || undefined : undefined);
+      const cleanOsGuess = cleanStr(host.osGuess) || (matchedMachine ? matchedMachine.os || undefined : undefined);
+      const cleanMac = cleanStr(host.macAddress) || (matchedMachine ? matchedMachine.macAddress || undefined : undefined);
+      const deviceType = host.deviceType || 'Unknown';
 
       // Save DiscoveryHost
-      const createdHost = await this.prisma.discoveryHost.create({
+      await this.prisma.discoveryHost.create({
         data: {
           scanId,
           ip: host.ip,
@@ -224,6 +278,7 @@ function cleanStr(val?: string | null): string | undefined {
           macAddress: cleanMac,
           vendor: cleanVendor,
           osGuess: cleanOsGuess,
+          deviceType,
           status: host.status,
           responseTimeMs: host.responseTimeMs,
           isNew,
@@ -242,7 +297,9 @@ function cleanStr(val?: string | null): string | undefined {
 
       // Generate Diffs
       if (isNew) {
-        const portsStr = host.ports.map((p) => `${p.portNumber}/${p.serviceName || p.protocol}`).join(', ');
+        const portsStr = host.ports
+          .map((p) => `${p.portNumber}/${p.serviceName || p.protocol}`)
+          .join(', ');
         await this.prisma.discoveryChange.create({
           data: {
             scanId,
@@ -250,10 +307,13 @@ function cleanStr(val?: string | null): string | undefined {
             status: DiscoveryChangeStatus.PENDING,
             ip: host.ip,
             hostname: host.hostname,
-            details: `Nuevo dispositivo detectado en ${host.ip}${host.hostname ? ` (${host.hostname})` : ''} con puertos abiertos: ${portsStr || 'Ninguno'}`,
+            details: `Nuevo dispositivo detectado en ${host.ip} (${cleanHostname || 'Sin DNS'}). Tipo clasificado: ${deviceType}. Fabricante: ${cleanVendor || 'Desconocido'}. Puertos: ${portsStr || 'Ninguno'}`,
             newValue: JSON.stringify({
               ip: host.ip,
+              macAddress: host.macAddress,
               hostname: host.hostname,
+              vendor: host.vendor,
+              deviceType,
               ports: host.ports,
             }),
           },
@@ -272,7 +332,113 @@ function cleanStr(val?: string | null): string | undefined {
           },
         });
 
-        // Check for new ports
+        // 1. Check IP Changed
+        if (matchedMachine.primaryIp && matchedMachine.primaryIp !== host.ip) {
+          hasChanges = true;
+          await this.prisma.discoveryChange.create({
+            data: {
+              scanId,
+              machineId: matchedMachine.id,
+              changeType: DiscoveryChangeType.IP_CHANGED,
+              status: DiscoveryChangeStatus.PENDING,
+              ip: host.ip,
+              hostname: matchedMachine.hostname,
+              details: `IP modificada para ${matchedMachine.hostname}: ${matchedMachine.primaryIp} -> ${host.ip}`,
+              oldValue: matchedMachine.primaryIp,
+              newValue: host.ip,
+            },
+          });
+        }
+
+        // 2. Check MAC Changed
+        if (
+          host.macAddress &&
+          matchedMachine.macAddress &&
+          matchedMachine.macAddress.toUpperCase() !== host.macAddress.toUpperCase()
+        ) {
+          hasChanges = true;
+          await this.prisma.discoveryChange.create({
+            data: {
+              scanId,
+              machineId: matchedMachine.id,
+              changeType: DiscoveryChangeType.MAC_CHANGED,
+              status: DiscoveryChangeStatus.PENDING,
+              ip: host.ip,
+              hostname: matchedMachine.hostname,
+              details: `Dirección MAC modificada para ${matchedMachine.hostname}: ${matchedMachine.macAddress} -> ${host.macAddress}`,
+              oldValue: matchedMachine.macAddress,
+              newValue: host.macAddress,
+            },
+          });
+        }
+
+        // 3. Check Hostname Changed
+        if (
+          host.hostname &&
+          matchedMachine.hostname &&
+          host.hostname.toLowerCase() !== matchedMachine.hostname.toLowerCase()
+        ) {
+          hasChanges = true;
+          await this.prisma.discoveryChange.create({
+            data: {
+              scanId,
+              machineId: matchedMachine.id,
+              changeType: DiscoveryChangeType.HOSTNAME_CHANGED,
+              status: DiscoveryChangeStatus.PENDING,
+              ip: host.ip,
+              hostname: matchedMachine.hostname,
+              details: `Hostname modificado para máquina en ${host.ip}: ${matchedMachine.hostname} -> ${host.hostname}`,
+              oldValue: matchedMachine.hostname,
+              newValue: host.hostname,
+            },
+          });
+        }
+
+        // 4. Check Vendor Changed
+        if (
+          host.vendor &&
+          matchedMachine.manufacturer &&
+          host.vendor.toLowerCase() !== matchedMachine.manufacturer.toLowerCase()
+        ) {
+          hasChanges = true;
+          await this.prisma.discoveryChange.create({
+            data: {
+              scanId,
+              machineId: matchedMachine.id,
+              changeType: DiscoveryChangeType.VENDOR_CHANGED,
+              status: DiscoveryChangeStatus.PENDING,
+              ip: host.ip,
+              hostname: matchedMachine.hostname,
+              details: `Fabricante detectado modificado para ${matchedMachine.hostname}: ${matchedMachine.manufacturer} -> ${host.vendor}`,
+              oldValue: matchedMachine.manufacturer,
+              newValue: host.vendor,
+            },
+          });
+        }
+
+        // 5. Check OS Changed
+        if (
+          host.osGuess &&
+          matchedMachine.os &&
+          host.osGuess.toLowerCase() !== matchedMachine.os.toLowerCase()
+        ) {
+          hasChanges = true;
+          await this.prisma.discoveryChange.create({
+            data: {
+              scanId,
+              machineId: matchedMachine.id,
+              changeType: DiscoveryChangeType.OS_CHANGED,
+              status: DiscoveryChangeStatus.PENDING,
+              ip: host.ip,
+              hostname: matchedMachine.hostname,
+              details: `Sistema operativo modificado para ${matchedMachine.hostname}: ${matchedMachine.os} -> ${host.osGuess}`,
+              oldValue: matchedMachine.os,
+              newValue: host.osGuess,
+            },
+          });
+        }
+
+        // 6. Check for new ports
         for (const p of host.ports) {
           if (!existingPortNumbers.has(p.portNumber)) {
             hasChanges = true;
@@ -291,7 +457,7 @@ function cleanStr(val?: string | null): string | undefined {
           }
         }
 
-        // Check for closed ports
+        // 7. Check for closed ports
         for (const ep of matchedMachine.ports) {
           if (ep.state === PortState.OPEN && !openPortNumbers.has(ep.portNumber)) {
             hasChanges = true;
@@ -310,6 +476,23 @@ function cleanStr(val?: string | null): string | undefined {
           }
         }
 
+        // 8. Check Hardware Changes (e.g. from SNMP/SSH/WinRM if available)
+        if (host.hardware?.ram) {
+          hasChanges = true;
+          await this.prisma.discoveryChange.create({
+            data: {
+              scanId,
+              machineId: matchedMachine.id,
+              changeType: DiscoveryChangeType.HARDWARE_CHANGED,
+              status: DiscoveryChangeStatus.PENDING,
+              ip: host.ip,
+              hostname: matchedMachine.hostname,
+              details: `Cambio de hardware detectado en ${matchedMachine.hostname}: RAM telemetría actualizada a ${host.hardware.ram}`,
+              newValue: host.hardware.ram,
+            },
+          });
+        }
+
         if (hasChanges) {
           changedDevicesCount++;
         }
@@ -317,7 +500,6 @@ function cleanStr(val?: string | null): string | undefined {
     }
 
     // 3. Detect Missing / Unresponsive devices in the scanned subnet
-    // Any machine with primaryIp matching this CIDR that was not discovered
     for (const machine of existingMachines) {
       if (machine.primaryIp && isIpInCidr(machine.primaryIp, scan.networkCidr)) {
         if (!discoveredIps.has(machine.primaryIp)) {
@@ -347,6 +529,14 @@ function cleanStr(val?: string | null): string | undefined {
       }
     }
 
+    // Update lastScannedAt on DiscoveryNetwork if configured
+    await this.prisma.discoveryNetwork
+      .updateMany({
+        where: { cidr: scan.networkCidr },
+        data: { lastScannedAt: new Date() },
+      })
+      .catch(() => {});
+
     // Finalize Scan in DB
     await this.prisma.discoveryScan.update({
       where: { id: scanId },
@@ -369,7 +559,7 @@ function cleanStr(val?: string | null): string | undefined {
       entityType: 'DiscoveryScan',
       entityId: scanId,
       action: ChangeAction.CREATE,
-      details: `Escaneo de red ${scan.networkCidr} completado. ${results.discoveredHosts.length} hosts activos, ${newDevicesCount} nuevos dispositivos, ${missingDevicesCount} no detectados.`,
+      details: `Escaneo avanzado de red ${scan.networkCidr} completado en ${results.durationMs ? (results.durationMs / 1000).toFixed(1) + 's' : '-'}. ${results.discoveredHosts.length} hosts activos, ${newDevicesCount} nuevos dispositivos, ${changedDevicesCount} cambios, ${missingDevicesCount} fuera de línea.`,
     });
   }
 
@@ -405,7 +595,7 @@ function cleanStr(val?: string | null): string | undefined {
       },
     });
 
-    if (!scan) throw new Error('Scan not found');
+    if (!scan) throw new Error('Scan no encontrado');
     return scan;
   }
 
@@ -444,7 +634,7 @@ function cleanStr(val?: string | null): string | undefined {
       },
     });
 
-    if (!scan) throw new Error('Scan not found');
+    if (!scan) throw new Error('Scan no encontrado');
     return scan;
   }
 
@@ -502,7 +692,7 @@ function cleanStr(val?: string | null): string | undefined {
   // 9. Approve Change
   async approveChange(changeId: string) {
     const change = await this.prisma.discoveryChange.findUnique({ where: { id: changeId } });
-    if (!change) throw new Error('Change not found');
+    if (!change) throw new Error('Cambio no encontrado');
 
     const updated = await this.prisma.discoveryChange.update({
       where: { id: changeId },
@@ -524,7 +714,7 @@ function cleanStr(val?: string | null): string | undefined {
   // 10. Ignore Change
   async ignoreChange(changeId: string) {
     const change = await this.prisma.discoveryChange.findUnique({ where: { id: changeId } });
-    if (!change) throw new Error('Change not found');
+    if (!change) throw new Error('Cambio no encontrado');
 
     const updated = await this.prisma.discoveryChange.update({
       where: { id: changeId },
@@ -550,7 +740,7 @@ function cleanStr(val?: string | null): string | undefined {
       include: { ports: true },
     });
 
-    if (!host) throw new Error('Discovered host not found');
+    if (!host) throw new Error('Host descubierto no encontrado');
 
     // Create Machine in Inventory
     const machine = await this.prisma.machine.create({
@@ -565,7 +755,9 @@ function cleanStr(val?: string | null): string | undefined {
         macAddress: host.macAddress,
         locationId: data.locationId,
         vlanId: data.vlanId,
-        description: data.description || `Importado automáticamente desde Discovery Scan (${host.ip})`,
+        description:
+          data.description ||
+          `Importado desde Discovery Scan (${host.ip}) [Tipo clasificado: ${host.deviceType || 'Unknown'}]`,
         lastDiscoveredAt: new Date(),
         interfaces: {
           create: {
@@ -642,6 +834,54 @@ function cleanStr(val?: string | null): string | undefined {
     });
 
     return machine;
+  }
+
+  // 12. Configured Networks Management
+  async listNetworks() {
+    return this.prisma.discoveryNetwork.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async saveNetwork(data: SaveDiscoveryNetworkInput) {
+    if (!isValidCIDR(data.cidr)) {
+      throw new Error(`CIDR inválido: ${data.cidr}`);
+    }
+
+    if (data.id) {
+      return this.prisma.discoveryNetwork.update({
+        where: { id: data.id },
+        data: {
+          name: data.name,
+          cidr: data.cidr,
+          description: data.description,
+          excludedIps: data.excludedIps,
+          schedule: data.schedule,
+          scanType: data.scanType as ScanType,
+          customPorts: data.customPorts,
+          enabledMethods: data.enabledMethods as any,
+          snmpCommunity: data.snmpCommunity,
+        },
+      });
+    }
+
+    return this.prisma.discoveryNetwork.create({
+      data: {
+        name: data.name,
+        cidr: data.cidr,
+        description: data.description,
+        excludedIps: data.excludedIps,
+        schedule: data.schedule,
+        scanType: data.scanType as ScanType,
+        customPorts: data.customPorts,
+        enabledMethods: data.enabledMethods as any,
+        snmpCommunity: data.snmpCommunity,
+      },
+    });
+  }
+
+  async deleteNetwork(id: string) {
+    return this.prisma.discoveryNetwork.delete({ where: { id } });
   }
 }
 

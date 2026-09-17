@@ -1,11 +1,12 @@
 {
   "name": "palma-inventory-discovery",
-  "version": "2.0.0",
+  "version": "11.2.0",
   "description": "Palma Inventory Discovery Engine Microservice",
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "test": "tsx --test test/discovery.test.ts",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts"
   },
