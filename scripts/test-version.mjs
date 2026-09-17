@@ -34,7 +34,7 @@ console.log('   ✅ Explicit Version: 20.5.3');
 // 6. Test Current Version Consistency
 const consistency = checkConsistency();
 assert.strictEqual(consistency.valid, true);
-assert.strictEqual(consistency.version, '11.0.0');
-console.log('   ✅ Current Version is strictly 11.0.0 and consistent across project files');
+assert.strictEqual(consistency.version, loadVersion().version);
+console.log(`   ✅ Current Version is strictly ${loadVersion().version} and consistent across project files`);
 
 console.log('🎉 ALL VERSION TESTS PASSED SUCCESSFULLY!');

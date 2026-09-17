@@ -40,6 +40,20 @@ jobs:
       - name: Validate Version Consistency
         run: |
           node scripts/release.mjs check
+          node scripts/test-version.mjs
+
+      - name: Validate Git Tag Matches version.json (Release Tags Only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          CURRENT_VERSION=$(node scripts/release.mjs current)
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "Comparing Git Tag ($TAG_VERSION) with version.json ($CURRENT_VERSION)..."
+          if [ "$TAG_VERSION" != "$CURRENT_VERSION" ]; then
+            echo "❌ ERROR: Git tag ($TAG_VERSION) does not match version.json ($CURRENT_VERSION)!"
+            echo "Please run 'npm run version:bump' or sync version.json before tagging."
+            exit 1
+          fi
+          echo "✅ Git tag matches version.json: $CURRENT_VERSION"
 
       - name: Validate Frontend Build
         working-directory: ./frontend
@@ -66,12 +80,17 @@ jobs:
           npm ci
           npm run build
 
-  # 2. Build and Publish Multi-Arch Docker Images to GHCR
+      - name: Run Discovery & Backend Tests
+        run: |
+          npm run test:discovery
+          npm run test:backend
+
+  # 2. Build and Publish Multi-Arch Docker Images to GHCR (Triggered on Official Release Tags)
   build-and-publish:
     name: Build & Publish GHCR Images
     needs: test-and-lint
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -102,10 +121,10 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/infrainventory-backend
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
+            type=raw,value=latest
+            type=sha,format=short,prefix=sha-
 
       # Frontend Docker Metadata
       - name: Extract metadata for Frontend
@@ -114,10 +133,10 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/infrainventory-frontend
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
+            type=raw,value=latest
+            type=sha,format=short,prefix=sha-
 
       # Discovery Docker Metadata
       - name: Extract metadata for Discovery
@@ -126,10 +145,10 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/infrainventory-discovery
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
+            type=raw,value=latest
+            type=sha,format=short,prefix=sha-
 
       # Monitoring Worker Docker Metadata
       - name: Extract metadata for Monitoring Worker
@@ -138,10 +157,10 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/infrainventory-monitoring-worker
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
+            type=raw,value=latest
+            type=sha,format=short,prefix=sha-
 
       # 1. Build and push Backend Image
       - name: Build and push Backend Image
@@ -195,7 +214,7 @@ jobs:
       - name: Trigger Portainer Redeploy Webhook
         if: env.PORTAINER_WEBHOOK_URL != ''
         run: |
-          echo "Triggering Portainer Stack Webhook..."
+          echo "Triggering Portainer Stack Webhook after successful GHCR publishing..."
           curl -k -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}" || echo "Portainer Webhook step finished"
         env:
           PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}

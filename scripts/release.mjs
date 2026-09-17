@@ -42,6 +42,8 @@ const DOCKERFILES = [
   path.join(ROOT_DIR, 'monitoring-worker', 'Dockerfile'),
 ];
 
+const PORTAINER_COMPOSE = path.join(ROOT_DIR, 'docker-compose.portainer.yml');
+
 /**
  * Load current version info
  */
@@ -169,6 +171,20 @@ function updateDockerfile(filePath, newVersion) {
 }
 
 /**
+ * Update docker-compose.portainer.yml default image tag
+ */
+function updatePortainerCompose(filePath, newVersion) {
+  if (!fs.existsSync(filePath)) return;
+  let content = fs.readFileSync(filePath, 'utf-8');
+  content = content.replace(/\$\{IMAGE_TAG:-[^}]+\}/g, `\${IMAGE_TAG:-${newVersion}}`);
+  content = content.replace(
+    /org\.opencontainers\.image\.version:\s*"\$\{IMAGE_TAG:-[^}]+\}"/g,
+    `org.opencontainers.image.version: "\${IMAGE_TAG:-${newVersion}}"`
+  );
+  fs.writeFileSync(filePath, content, 'utf-8');
+}
+
+/**
  * Synchronize all files to given versionInfo
  */
 export function applyVersion(versionInfo, dryRun = false) {
@@ -206,6 +222,9 @@ export function applyVersion(versionInfo, dryRun = false) {
     updateDockerfile(dockerPath, fullVersionInfo.version);
   }
 
+  // 6. Update Portainer Docker Compose default tag
+  updatePortainerCompose(PORTAINER_COMPOSE, fullVersionInfo.version);
+
   return fullVersionInfo;
 }
 
@@ -229,6 +248,14 @@ export function checkConsistency() {
     const content = fs.readFileSync(FRONTEND_CONFIG, 'utf-8');
     if (!content.includes(`major: ${ver.major}`) || !content.includes(`minor: ${ver.minor}`) || !content.includes(`patch: ${ver.patch}`)) {
       issues.push(`Frontend appConfig.ts does not match version.json (${ver.version})`);
+    }
+  }
+
+  // Check docker-compose.portainer.yml
+  if (fs.existsSync(PORTAINER_COMPOSE)) {
+    const content = fs.readFileSync(PORTAINER_COMPOSE, 'utf-8');
+    if (!content.includes(`\${IMAGE_TAG:-${ver.version}}`)) {
+      issues.push(`docker-compose.portainer.yml does not match version.json (${ver.version})`);
     }
   }
 
