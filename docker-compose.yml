@@ -63,6 +63,8 @@ services:
       AI_API_KEY: ${AI_API_KEY:-}
     ports:
       - "${BACKEND_PORT:-4000}:4000"
+    volumes:
+      - infrainventory_backups_data:/backups
     depends_on:
       postgres:
         condition: service_healthy
@@ -124,6 +126,8 @@ services:
 volumes:
   infrainventory_postgres_data:
     name: infrainventory_postgres_data
+  infrainventory_backups_data:
+    name: infrainventory_backups_data
 
 networks:
   infrainventory-network:

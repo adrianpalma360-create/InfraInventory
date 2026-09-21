@@ -81,6 +81,8 @@ export const Topbar: React.FC<TopbarProps> = ({
     alerts: 'Centro de Alertas & Notificaciones',
     users: 'Gestión de Usuarios, Roles & Permisos',
     profile: 'Mi Perfil & Seguridad de Sesión',
+    backups: 'Copias de Seguridad & Restauración',
+    'import-export': 'Importación y Exportación de Inventario',
     settings: 'Configuración del Sistema',
     about: 'Acerca de InfraInventory & Licencia',
   };

@@ -25,7 +25,7 @@ RUN npm run build
 # Stage 2: Minimal Production Nginx Runner
 FROM nginx:1.25-alpine AS runner
 
-ARG APP_VERSION=12.0.0
+ARG APP_VERSION=13.0.0
 
 LABEL org.opencontainers.image.title="InfraInventory Frontend" \
       org.opencontainers.image.description="Modern React SPA Frontend for InfraInventory NOC Platform" \

@@ -40,6 +40,8 @@ import { operationsRoutes } from './modules/operations/operations.routes.js';
 import { aiRoutes } from './modules/ai/ai.routes.js';
 import { automationRoutes } from './modules/automation/automation.routes.js';
 import { setupRoutes } from './modules/setup/setup.routes.js';
+import { backupRoutes } from './modules/backups/backup.routes.js';
+import { inventoryIORoutes } from './modules/inventory-io/inventory-io.routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const env = getEnv();
@@ -180,6 +182,8 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(aiRoutes);
       await api.register(automationRoutes);
       await api.register(setupRoutes);
+      await api.register(backupRoutes);
+      await api.register(inventoryIORoutes);
     },
     { prefix: '/api' }
   );

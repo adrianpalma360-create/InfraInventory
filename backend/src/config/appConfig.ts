@@ -13,12 +13,12 @@ export interface VersionInfo {
 }
 
 export const APP_VERSION_INFO: VersionInfo = {
-  major: 12,
+  major: 13,
   minor: 0,
   patch: 0,
   tag: 'Release',
   buildDate: '2026-09-21',
-  releaseCommit: 'prod-v12.0.0-release',
+  releaseCommit: 'prod-v13.0.0-release',
 };
 
 // Formatted Semantic Version (e.g. "6.0.0")

@@ -47,7 +47,11 @@ export interface LogChangeParams {
     | 'ApprovalRequest'
     | 'AutomationPolicy'
     | 'Agent'
-    | 'AIActionProposal';
+    | 'AIActionProposal'
+    // V13
+    | 'Backup'
+    | 'InventoryExport'
+    | 'InventoryImport';
   entityId: string;
   action: ChangeAction;
   details: string;

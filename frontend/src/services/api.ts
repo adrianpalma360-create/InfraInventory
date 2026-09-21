@@ -73,6 +73,16 @@ import {
   AgentItem,
   AIActionProposalItem,
   AutomationStats,
+  BackupItem,
+  BackupConfig,
+  InventoryExportFilter,
+  InventoryExportLogItem,
+  ExportFormat,
+  ImportPreviewResult,
+  ImportMode,
+  ConflictResolution,
+  ImportExecutionResult,
+  InventoryImportLogItem,
 } from '../types/index.js';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -1402,3 +1412,101 @@ export const agentApi = {
     }),
 };
 
+// ============================================================
+// V13 - Backups & Inventory Import/Export Client API
+// ============================================================
+
+export const backupApi = {
+  getBackups: () => request<BackupItem[]>('/backups'),
+  getBackup: (id: string) => request<BackupItem>(`/backups/${id}`),
+  createBackup: (data?: { name?: string; isProtected?: boolean; description?: string }) =>
+    request<BackupItem>('/backups', {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    }),
+  getBackupConfig: () => request<BackupConfig>('/backups/config'),
+  updateBackupConfig: (data: Partial<BackupConfig>) =>
+    request<BackupConfig>('/backups/config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  toggleProtect: (id: string, isProtected: boolean) =>
+    request<BackupItem>(`/backups/${id}/protect`, {
+      method: 'POST',
+      body: JSON.stringify({ isProtected }),
+    }),
+  restoreBackup: (id: string, options?: { skipPreRestoreBackup?: boolean }) =>
+    request<{ success: boolean; preRestoreBackupId?: string; message: string }>(`/backups/${id}/restore`, {
+      method: 'POST',
+      body: JSON.stringify(options || {}),
+    }),
+  deleteBackup: (id: string) =>
+    request<{ success: boolean; message: string }>(`/backups/${id}`, {
+      method: 'DELETE',
+    }),
+  downloadBackup: async (id: string, filename: string) => {
+    const token = localStorage.getItem('palma_auth_token');
+    const res = await fetch(`${API_BASE}/backups/${id}/download`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error('Fallo al descargar backup');
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+};
+
+export const inventoryIOApi = {
+  exportInventory: async (filters: InventoryExportFilter) => {
+    const token = localStorage.getItem('palma_auth_token');
+    const res = await fetch(`${API_BASE}/inventory/export`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(filters),
+    });
+    if (!res.ok) throw new Error('Fallo al exportar inventario');
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition');
+    let filename = `inventory-export.${filters.format?.toLowerCase() || 'csv'}`;
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      if (match && match[1]) filename = match[1];
+    }
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    return { filename };
+  },
+  getExportHistory: () => request<InventoryExportLogItem[]>('/inventory/export/history'),
+  previewImport: (data: { rawContent: string; format: ExportFormat; filename?: string }) =>
+    request<ImportPreviewResult>('/inventory/import/preview', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  executeImport: (data: {
+    rawContent: string;
+    format: ExportFormat;
+    mode: ImportMode;
+    filename?: string;
+    conflictResolutions?: Record<string, ConflictResolution>;
+  }) =>
+    request<ImportExecutionResult>('/inventory/import/execute', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getImportHistory: () => request<InventoryImportLogItem[]>('/inventory/import/history'),
+};

@@ -13,12 +13,12 @@ export interface VersionInfo {
 }
 
 export const APP_VERSION_INFO: VersionInfo = {
-  major: 12,
+  major: 13,
   minor: 0,
   patch: 0,
   tag: 'Release',
   buildDate: '2026-09-21',
-  releaseCommit: 'prod-v12.0.0-release',
+  releaseCommit: 'prod-v13.0.0-release',
 };
 
 // Formatted Semantic Version (e.g. "6.0.0")
@@ -64,7 +64,9 @@ export const APP_CONFIG = {
     { title: '📊 Monitorización NOC', desc: 'Telemetría de salud, puertos y servicios en tiempo real.' },
     { title: '📈 Gráficos & Series Temporales', desc: 'Streaming WebSocket y consulta de métricas históricas.' },
     { title: '🔔 Centro de Alertas', desc: 'Detección de anomalías estadísticas mediante Z-Score.' },
-    { title: '🔄 Auditoría & Trazabilidad', desc: 'Historial inmutable de cambios sobre cada elemento.' },
+    { title: '💾 Backups & Recuperación', desc: 'Copias manuales y programadas, retención multinivel, verificación SHA-256 y pre-restore snapshot.' },
+    { title: '📦 Importación / Exportación', desc: 'Exportación CSV/JSON/XLSX/Migración con protección ante inyección, e importación transaccional con previsualización.' },
+    { title: '🔄 Auditoría & Trazabilidad', desc: 'Historial inmutable de cambios sobre cada elemento e histórico de operaciones IO.' },
   ],
 } as const;
 

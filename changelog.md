@@ -4,6 +4,29 @@ Todas las modificaciones notables de este proyecto se documentan en este archivo
 
 ---
 
+## [13.0.0] - 2026-09-21
+
+### 💾 Sistema Integral de Backups de InfraInventory
+* **Copias de Seguridad Completas:** Respaldo atómico y estructurado de la base de datos PostgreSQL, configuración del sistema, catálogo de inventario, activos IT, políticas de seguridad, workflows y auditoría.
+* **Integridad Garantizada:** Generación y verificación criptográfica de sumas de verificación SHA-256 por cada archivo de copia de seguridad generado.
+* **Modos de Ejecución:** Backups manuales bajo demanda y programación automática mediante cron (`Daily`, `Weekly`, `Monthly`).
+* **Políticas de Retención Automática:** Purgado automático e inteligente configurable por antigüedad y número máximo de copias conservadas.
+* **Protección de Backups Críticos:** Flag `isProtected` que impide el borrado accidental o la poda por políticas de retención de copias maestras.
+* **Descarga y Exportación:** Streaming seguro de paquetes `.tar.gz` / `.json.gz` con validación de permisos de operador.
+* **Restauración Segura con Pre-Restore Snapshot:** Flujo de restauración transaccional con doble confirmación que genera automáticamente una copia de seguridad de seguridad (`pre-restore-YYYY-MM-DD-HH-mm`) antes de aplicar cambios destructivos sobre la base de datos.
+* **Registro de Auditoría:** Historial inmutable de creaciones, descargas, restauraciones y borrados de copias de seguridad.
+
+### 📦 Importación y Exportación del Inventario
+* **Formatos de Exportación Múltiples:** Exportación integral o filtrada de la infraestructura a formatos CSV, JSON, Excel (.xlsx) y Paquetes de Migración (`infrainventory-export`).
+* **Protección contra Inyección de Fórmulas CSV/Excel:** Sanitización estricta de todos los campos exportados para neutralizar ataques de inyección de fórmulas (prefijos `=`, `+`, `-`, `@`).
+* **Exportación de Migración Segura:** Paquete JSON transportable entre instancias de InfraInventory con exclusión automática de contraseñas, hashes, tokens de sesión y secretos de infraestructura.
+* **Importación con Previsualización Obligatoria:** Fase de análisis previo que clasifica los registros entrantes en: Nuevos, Actualizaciones, Conflictos de IP/Hostname y Errores sintácticos antes de aplicar cualquier cambio.
+* **Resolución Flexible de Conflictos:** Selector de estrategia de importación: Conservar existente (*Keep existing*), Sobrescribir (*Overwrite*) u Omitir con advertencia (*Skip*).
+* **Ejecución Transaccional con Rollback:** Motor de importación ACID que revierte la totalidad de las operaciones si ocurre una anomalía crítica durante la inserción.
+* **Historial y Trazabilidad IO:** Registro persistente de todas las tareas de importación y exportación con usuario autor, número de filas procesadas, formato y estado.
+
+---
+
 ## [12.0.0] - 2026-09-21
 
 ### 🚀 Dashboard NOC Centralizado & Monitorización de Infraestructura

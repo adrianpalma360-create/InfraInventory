@@ -2105,5 +2105,108 @@ model AIActionProposal {
   @@map("ai_action_proposals")
 }
 
+// ============================================================
+// V13 - Backups & Inventory Import/Export Architecture
+// ============================================================
 
+enum BackupStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  RESTORING
+  RESTORED
+  CORRUPTED
+}
 
+enum BackupType {
+  MANUAL
+  SCHEDULED
+  PRE_RESTORE
+}
+
+model Backup {
+  id              String       @id @default(uuid())
+  name            String       @unique
+  filename        String
+  filePath        String
+  sizeBytes       BigInt       @default(0)
+  type            BackupType   @default(MANUAL)
+  status          BackupStatus @default(PENDING)
+  appVersion      String       @default("13.0.0")
+  createdBy       String       @default("system")
+  durationMs      Int          @default(0)
+  isProtected     Boolean      @default(false)
+  isEncrypted     Boolean      @default(false)
+  checksumSha256  String?
+  tablesCount     Int          @default(0)
+  recordsCount    Int          @default(0)
+  errorDetails    String?
+  metadata        Json?
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("backups")
+}
+
+enum ExportFormat {
+  CSV
+  JSON
+  XLSX
+  MIGRATION_JSON
+}
+
+enum ImportStatus {
+  PENDING
+  PREVIEW
+  RUNNING
+  COMPLETED
+  FAILED
+  ROLLED_BACK
+}
+
+enum ImportMode {
+  ADD_ONLY
+  UPDATE_EXISTING
+  SYNC
+}
+
+model InventoryExportLog {
+  id           String       @id @default(uuid())
+  format       ExportFormat
+  scope        String       @default("ALL")
+  recordsCount Int          @default(0)
+  fileSize     BigInt       @default(0)
+  requestedBy  String       @default("system")
+  createdAt    DateTime     @default(now())
+
+  @@index([createdAt])
+  @@map("inventory_export_logs")
+}
+
+model InventoryImportLog {
+  id            String       @id @default(uuid())
+  filename      String
+  format        ExportFormat
+  mode          ImportMode   @default(UPDATE_EXISTING)
+  status        ImportStatus @default(COMPLETED)
+  totalRecords  Int          @default(0)
+  createdCount  Int          @default(0)
+  updatedCount  Int          @default(0)
+  skippedCount  Int          @default(0)
+  errorCount    Int          @default(0)
+  conflictCount Int          @default(0)
+  summary       String?
+  errorDetails  Json?
+  requestedBy   String       @default("system")
+  durationMs    Int          @default(0)
+  createdAt     DateTime     @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("inventory_import_logs")
+}

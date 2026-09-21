@@ -8,6 +8,8 @@ InfraInventory es una plataforma integral para el inventario, monitorización y 
 
 ## 🌟 Características Principales
 
+* **💾 Sistema Integral de Backups (v13.0.0):** Respaldo completo del sistema y base de datos con verificación criptográfica SHA-256, políticas de retención (`Daily`, `Weekly`, `Monthly`), protección contra borrado accidental (`isProtected`) y restauración segura con snapshot preventivo automático.
+* **📦 Importación y Exportación Avanzada (v13.0.0):** Exportación integral a formatos CSV, JSON, Excel (.xlsx) y Migración estructurada con protección contra ataques de inyección de fórmulas CSV/Excel; Importación interactiva con previsualización, detección de conflictos (Keep/Overwrite/Skip) y ejecución transaccional con rollback.
 * **📊 Dashboard NOC de Alta Visibilidad (v12.0.0):** Centro de supervisión unificado con cálculo transparente de Health Score, cola inteligente de atención por severidad, telemetría agregada de recursos, rankings de consumo, alertas críticas y streaming en tiempo real.
 * **🖥️ Inventario y Gestión de Máquinas:** Registro técnico detallado de servidores físicos, máquinas virtuales, appliances de red y puestos de trabajo.
 * **🔍 Advanced Network Discovery (Agentless):** Descubrimiento autónomo de redes sin agente mediante ICMP, ARP, TCP, DNS, SNMP v2c/v3, SSH y WinRM, con clasificación basada en evidencias y auditoría de deltas.

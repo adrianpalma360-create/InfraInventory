@@ -2098,3 +2098,129 @@ export interface SetupInitializeInput {
   language?: string;
 }
 
+// ============================================================
+// V13 - Backup & Inventory Import/Export Types
+// ============================================================
+
+export type BackupStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'RESTORING' | 'RESTORED' | 'CORRUPTED';
+export type BackupType = 'MANUAL' | 'SCHEDULED' | 'PRE_RESTORE';
+
+export interface BackupItem {
+  id: string;
+  name: string;
+  filename: string;
+  filePath: string;
+  sizeBytes: number;
+  sizeFormatted: string;
+  type: BackupType;
+  status: BackupStatus;
+  appVersion: string;
+  createdBy: string;
+  durationMs: number;
+  isProtected: boolean;
+  isEncrypted: boolean;
+  checksumSha256?: string | null;
+  tablesCount: number;
+  recordsCount: number;
+  errorDetails?: string | null;
+  metadata?: Record<string, any> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BackupConfig {
+  autoBackupEnabled: boolean;
+  frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  timeUtc: string;
+  retentionDaily: number;
+  retentionWeekly: number;
+  retentionMonthly: number;
+  storagePath: string;
+  encryptionEnabled: boolean;
+}
+
+export type ExportFormat = 'CSV' | 'JSON' | 'XLSX' | 'MIGRATION_JSON';
+export type ImportMode = 'ADD_ONLY' | 'UPDATE_EXISTING' | 'SYNC';
+export type ConflictResolution = 'KEEP_EXISTING' | 'OVERWRITE' | 'SKIP';
+
+export interface InventoryExportFilter {
+  format?: ExportFormat;
+  group?: string;
+  type?: string;
+  status?: string;
+  locationId?: string;
+  tag?: string;
+  os?: string;
+}
+
+export interface InventoryExportLogItem {
+  id: string;
+  format: ExportFormat;
+  scope: string;
+  recordsCount: number;
+  fileSize: number;
+  requestedBy: string;
+  createdAt: string;
+}
+
+export interface ImportConflictItem {
+  id: string;
+  rowNumber: number;
+  fileHostname: string;
+  fileIp?: string;
+  dbHostname: string;
+  dbIp?: string;
+  dbId: string;
+  differences: { field: string; fileValue: string; dbValue: string }[];
+}
+
+export interface ImportValidationError {
+  rowNumber: number;
+  field: string;
+  message: string;
+  rawValue?: string;
+}
+
+export interface ImportPreviewResult {
+  filename: string;
+  format: string;
+  totalRecords: number;
+  newCount: number;
+  updateCount: number;
+  conflictCount: number;
+  errorCount: number;
+  sampleRows: any[];
+  conflicts: ImportConflictItem[];
+  errors: ImportValidationError[];
+}
+
+export interface ImportExecutionResult {
+  importLogId: string;
+  status: 'COMPLETED' | 'FAILED';
+  totalProcessed: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  errorCount: number;
+  durationMs: number;
+  summary: string;
+}
+
+export interface InventoryImportLogItem {
+  id: string;
+  filename: string;
+  format: ExportFormat;
+  mode: ImportMode;
+  status: 'PENDING' | 'PREVIEW' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'ROLLED_BACK';
+  totalRecords: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  errorCount: number;
+  conflictCount: number;
+  summary?: string | null;
+  errorDetails?: any;
+  requestedBy: string;
+  durationMs: number;
+  createdAt: string;
+}

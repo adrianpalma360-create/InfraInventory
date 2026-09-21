@@ -1,11 +1,11 @@
 {
   "name": "palma-inventory-backend",
-  "version": "12.0.0",
+  "version": "13.0.0",
   "description": "Palma Inventory Backend API built with Fastify, TypeScript, and Prisma",
   "main": "dist/server.js",
   "scripts": {
     "build": "prisma generate && tsc",
-    "test": "tsx --test test/discovery_diff.test.ts test/dashboard_noc.test.ts",
+    "test": "tsx --test test/discovery_diff.test.ts test/dashboard_noc.test.ts test/v13_backups_and_io.test.ts",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "prisma:generate": "prisma generate",

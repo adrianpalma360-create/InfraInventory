@@ -45,6 +45,8 @@ import {
   Zap,
   Terminal,
   ShieldAlert,
+  Database,
+  ArrowDownUp,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 
@@ -102,6 +104,8 @@ export type NavigationTab =
   | 'alerts'
   | 'users'
   | 'profile'
+  | 'backups'
+  | 'import-export'
   | 'settings'
   | 'about';
 
@@ -893,6 +897,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>Usuarios</span>
           </button>
         )}
+
+        {/* 10. 📦 Importar / Exportar */}
+        <button
+          onClick={() => onSelectTab('import-export')}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all text-left ${
+            currentTab === 'import-export'
+              ? 'bg-[#151B23] text-[#06B6D4] border border-[#06B6D4]/30 shadow-sm font-semibold'
+              : 'text-[#94A3B8] hover:bg-[#151B23]/70 hover:text-[#F1F5F9] border border-transparent'
+          }`}
+        >
+          <ArrowDownUp className={`w-4 h-4 ${currentTab === 'import-export' ? 'text-[#06B6D4]' : 'text-[#38BDF8]'}`} />
+          <span>Importar / Exportar</span>
+        </button>
+
+        {/* 11. 💾 Backups */}
+        <button
+          onClick={() => onSelectTab('backups')}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all text-left ${
+            currentTab === 'backups'
+              ? 'bg-[#151B23] text-[#06B6D4] border border-[#06B6D4]/30 shadow-sm font-semibold'
+              : 'text-[#94A3B8] hover:bg-[#151B23]/70 hover:text-[#F1F5F9] border border-transparent'
+          }`}
+        >
+          <Database className={`w-4 h-4 ${currentTab === 'backups' ? 'text-[#06B6D4]' : 'text-[#10B981]'}`} />
+          <span>Copias de Seguridad</span>
+        </button>
 
         {/* 10. ⚙️ Configuración */}
         <button

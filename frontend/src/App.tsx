@@ -32,6 +32,8 @@ import { SettingsPage } from './pages/SettingsPage.js';
 import { AboutPage } from './pages/AboutPage.js';
 import { AiAssistantPage } from './pages/AiAssistantPage.js';
 import { AutomationPage } from './pages/AutomationPage.js';
+import { BackupsPage } from './pages/BackupsPage.js';
+import { InventoryIOPage } from './pages/InventoryIOPage.js';
 
 export const AppContent: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<NavigationTab>('dashboard');
@@ -341,6 +343,10 @@ export const AppContent: React.FC = () => {
                 onNavigateToSettings={() => handleSelectTab('settings')}
               />
             )}
+
+            {/* 💾 Backups & 📦 Importar / Exportar (v13.0.0) */}
+            {currentTab === 'backups' && <BackupsPage />}
+            {currentTab === 'import-export' && <InventoryIOPage />}
           </>
         )}
       </Layout>
