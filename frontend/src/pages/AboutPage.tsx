@@ -21,6 +21,28 @@ export const AboutPage: React.FC<AboutPageProps> = ({
   onNavigateToDashboard,
   onNavigateToSettings,
 }) => {
+  const [backendVersion, setBackendVersion] = React.useState<string | null>(null);
+  const [backendStatus, setBackendStatus] = React.useState<'checking' | 'connected' | 'offline'>('checking');
+
+  React.useEffect(() => {
+    fetch('/api/version')
+      .then((res) => {
+        if (!res.ok) throw new Error('Status not OK');
+        return res.json();
+      })
+      .then((json) => {
+        if (json?.data?.version) {
+          setBackendVersion(json.data.version);
+          setBackendStatus('connected');
+        } else {
+          setBackendStatus('offline');
+        }
+      })
+      .catch(() => {
+        setBackendStatus('offline');
+      });
+  }, []);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-200 max-w-5xl mx-auto pb-10">
       {/* Hero Header Card */}
@@ -48,6 +70,12 @@ export const AboutPage: React.FC<AboutPageProps> = ({
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono text-[#22C55E] bg-[#22C55E]/10 border border-[#22C55E]/30">
                   {APP_CONFIG.APP_VERSION_INFO.tag || 'Stable'}
                 </span>
+                {backendStatus === 'connected' && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono text-[#38BDF8] bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#38BDF8]" />
+                    Backend: v{backendVersion} (Sync)
+                  </span>
+                )}
               </div>
 
               <p className="text-sm text-[#94A3B8] max-w-2xl leading-relaxed">

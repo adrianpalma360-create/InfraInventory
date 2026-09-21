@@ -78,24 +78,53 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(prismaPlugin);
   await app.register(swaggerPlugin);
 
-  // Healthcheck endpoints
+  // Healthcheck & Version endpoints
   app.get('/health', async (request, reply) => {
+    const { APP_CONFIG } = await import('./config/appConfig.js');
     try {
       await app.prisma.$queryRaw`SELECT 1`;
-      return { status: 'healthy', database: 'connected', timestamp: new Date().toISOString() };
+      return { status: 'healthy', database: 'connected', version: APP_CONFIG.APP_VERSION, timestamp: new Date().toISOString() };
     } catch (e) {
-      return reply.status(503).send({ status: 'unhealthy', database: 'disconnected', error: (e as Error).message });
+      return reply.status(503).send({ status: 'unhealthy', database: 'disconnected', version: APP_CONFIG.APP_VERSION, error: (e as Error).message });
     }
   });
-  app.get('/healthz', async () => ({ status: 'healthy', timestamp: new Date().toISOString() }));
+  app.get('/healthz', async () => {
+    const { APP_CONFIG } = await import('./config/appConfig.js');
+    return { status: 'healthy', version: APP_CONFIG.APP_VERSION, timestamp: new Date().toISOString() };
+  });
   app.get('/livez', async () => ({ status: 'live', timestamp: new Date().toISOString() }));
   app.get('/readyz', async (request, reply) => {
+    const { APP_CONFIG } = await import('./config/appConfig.js');
     try {
       await app.prisma.$queryRaw`SELECT 1`;
-      return { status: 'ready', database: 'connected', timestamp: new Date().toISOString() };
+      return { status: 'ready', database: 'connected', version: APP_CONFIG.APP_VERSION, timestamp: new Date().toISOString() };
     } catch (e) {
-      return reply.status(503).send({ status: 'unready', database: 'disconnected' });
+      return reply.status(503).send({ status: 'unready', database: 'disconnected', version: APP_CONFIG.APP_VERSION });
     }
+  });
+
+  // Dedicated Version Endpoints
+  app.get('/version', async () => {
+    const { APP_CONFIG } = await import('./config/appConfig.js');
+    return {
+      version: APP_CONFIG.APP_VERSION,
+      major: APP_CONFIG.APP_VERSION_INFO.major,
+      minor: APP_CONFIG.APP_VERSION_INFO.minor,
+      patch: APP_CONFIG.APP_VERSION_INFO.patch,
+      tag: APP_CONFIG.APP_VERSION_INFO.tag,
+      buildDate: APP_CONFIG.APP_VERSION_INFO.buildDate,
+      releaseCommit: APP_CONFIG.APP_VERSION_INFO.releaseCommit,
+    };
+  });
+  app.get('/api/version', async () => {
+    const { APP_CONFIG } = await import('./config/appConfig.js');
+    return {
+      success: true,
+      data: {
+        version: APP_CONFIG.APP_VERSION,
+        versionInfo: APP_CONFIG.APP_VERSION_INFO,
+      },
+    };
   });
 
   // App Public Info / About Endpoint
