@@ -1,6 +1,8 @@
 import {
   ApiResponse,
   DashboardSummary,
+  NocDashboardOverview,
+  NocFilterParams,
   Machine,
   PaginatedResult,
   Network,
@@ -283,7 +285,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  // Dashboard
+  // Dashboard (Legacy & V12 NOC Overview)
   getDashboard: (tagOrParams?: string | { tag?: string }) => {
     let tag: string | undefined;
     if (typeof tagOrParams === 'string') {
@@ -293,6 +295,17 @@ export const api = {
     }
     const qStr = tag ? `?tag=${encodeURIComponent(tag)}` : '';
     return request<DashboardSummary>(`/dashboard${qStr}`);
+  },
+
+  getNocOverview: (params?: NocFilterParams) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, val]) => {
+        if (val !== undefined && val !== null && val !== '') query.append(key, String(val));
+      });
+    }
+    const qStr = query.toString();
+    return request<NocDashboardOverview>(`/dashboard/overview${qStr ? `?${qStr}` : ''}`);
   },
 
   // Machines

@@ -6,6 +6,7 @@ interface CardProps {
   variant?: 'primary' | 'secondary';
   hover?: boolean;
   onClick?: () => void;
+  style?: React.CSSProperties;
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -14,6 +15,7 @@ export const Card: React.FC<CardProps> = ({
   variant = 'primary',
   hover = false,
   onClick,
+  style,
 }) => {
   const bgClass = variant === 'primary' ? 'bg-[#151B23]' : 'bg-[#1A212B]';
   const hoverClass = hover
@@ -23,6 +25,7 @@ export const Card: React.FC<CardProps> = ({
   return (
     <div
       onClick={onClick}
+      style={style}
       className={`rounded-xl border border-[#252D38] ${bgClass} p-5 ${hoverClass} ${className}`}
     >
       {children}

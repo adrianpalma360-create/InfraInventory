@@ -8,6 +8,7 @@ InfraInventory es una plataforma integral para el inventario, monitorización y 
 
 ## 🌟 Características Principales
 
+* **📊 Dashboard NOC de Alta Visibilidad (v12.0.0):** Centro de supervisión unificado con cálculo transparente de Health Score, cola inteligente de atención por severidad, telemetría agregada de recursos, rankings de consumo, alertas críticas y streaming en tiempo real.
 * **🖥️ Inventario y Gestión de Máquinas:** Registro técnico detallado de servidores físicos, máquinas virtuales, appliances de red y puestos de trabajo.
 * **🔍 Advanced Network Discovery (Agentless):** Descubrimiento autónomo de redes sin agente mediante ICMP, ARP, TCP, DNS, SNMP v2c/v3, SSH y WinRM, con clasificación basada en evidencias y auditoría de deltas.
 * **🌐 Módulo IPAM & Subredes:** Gestión centralizada de direccionamiento IPv4/IPv6, asignaciones, conflictos de red y calculadoras CIDR.
@@ -22,9 +23,53 @@ InfraInventory es una plataforma integral para el inventario, monitorización y 
 
 ---
 
+## 📊 Dashboard NOC (Centro de Operaciones de Red)
+
+InfraInventory 12.0.0 incorpora un Dashboard NOC profesional enfocado en la detección de incidencias en menos de 10 segundos:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ INFRAINVENTORY NOC 12.0.0               [LIVE STREAM 🟢] [Auto Refresh: 1m] [Actualizar]│
+│ Filtros: [📁 Grupos] [📍 Ubicaciones] [⚡ Estados] [🏷️ Tags]          [Periodo: 24h]    │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ [ 🔴 2 CRITICAL ALERTS ] ───► SRV-DB01 (Disk usage 97%) | PROXMOX01 (Node unreachable)│
+├────────────────────────────────┬───────────────────────────────────────────────────────┤
+│    HEALTH SCORE: 94%           │ TOTAL: 42   🟢 38 ONLINE   🟠 2 WARNING   🔴 2 OFFLINE│
+│    [ÓPTIMO / SALUDABLE]        │ ──────────────────────────────────────────────────────│
+│    (40% Disp + 30% Alertas     │ Segmented Distribution Bar: [███████████████░░░░░░]   │
+│     + 20% Serv + 10% Rec)      │                                                       │
+├────────────────────────────────┴───────────────────────────────────────────────────────┤
+│ RECURSOS GLOBALES:  CPU Media: 43% (Pico 92%) │ RAM: 61% │ Disco: 72% │ Latencia: 18ms │
+├────────────────────────────────┬───────────────────────────────────────────────────────┤
+│ TOP CONSUMIDORES               │ DISPOSITIVOS QUE REQUIEREN ATENCIÓN                   │
+│ • CPU: 1. SRV-DB01 (92%)       │ 🔴 SRV-DB01   Disco C: > 95%                          │
+│ • RAM: 1. SRV-APP01 (94%)      │ 🔴 PROXMOX01  Nodo no responde                        │
+│ • Disco: 1. SRV-BACKUP (96%)   │ 🟠 SW-CORE01  SNMP timeout                            │
+├────────────────────────────────┼───────────────────────────────────────────────────────┤
+│ SERVICIOS MONITORIZADOS        │ ALERTAS & ANOMALÍAS ACTIVAS                           │
+│ 🟢 124 Healthy 🟠 4 Warn 🔴 2 Down│ 🔴 SRV-DB01: Disk > 95% (hace 18m)                    │
+│ 🔴 SQL Server (Port 1433)      │ 🟠 PROXMOX01: RAM > 85% (hace 42m)                    │
+├────────────────────────────────┴───────────────────────────────────────────────────────┤
+│ RENDIMIENTO HISTÓRICO (Área 24h): CPU, RAM, Disco y Latencia con Bucketing Inteligente │
+├────────────────────────────────┬───────────────────────────────┬───────────────────────┤
+│ DISCOVERY ENGINE               │ MONITORING WORKER             │ ACTIVIDAD RECIENTE    │
+│ Último Scan: 192.168.1.0/24    │ 🟢 ONLINE (Ciclos: 1.248)     │ 12:21 🔴 SRV-DB01 Off │
+│ +2 nuevos | -1 faltante        │ Checks: 42 hosts cada 30s     │ 12:18 🟢 SRV-WEB01 On │
+└────────────────────────────────┴───────────────────────────────┴───────────────────────┘
+```
+
+### Cálculo Transparente de Health Score
+El Health Score se computa en el backend de forma matemática y determinista sin inventar datos:
+* **Disponibilidad (40% de peso):** Ratio de hosts Online / Total.
+* **Alertas Activas (30% de peso):** Penalización de 15 pts por anomalía crítica y 5 pts por advertencia.
+* **Salud de Servicios (20% de peso):** Ratio de puertos TCP/HTTP respondiendo correctamente.
+* **Saturación de Recursos (10% de peso):** Penalización si existen servidores con CPU/RAM/Disco > 90%.
+
+---
+
 ## 🔍 Advanced Network Discovery (Descubrimiento Autónomo sin Agente)
 
-InfraInventory 11.2.0 incluye un motor de descubrimiento modular de alta precisión diseñado para auditar redes de cualquier tamaño sin requerir instalación de agentes en los equipos cliente:
+InfraInventory 12.0.0 incluye un motor de descubrimiento modular de alta precisión diseñado para auditar redes de cualquier tamaño sin requerir instalación de agentes en los equipos cliente:
 
 ```
 InfraInventory Discovery Engine
@@ -99,18 +144,18 @@ El clasificador asigna a cada dispositivo su rol exacto a partir de firmas compr
 
 InfraInventory está preparado para desplegarse directamente en Portainer mediante Stacks conectados a Git o imágenes GHCR.
 
-### Opción A: Despliegue Gestionado por Tags de Versión (Muestra `Deployed Version: v11.0.0` en Portainer)
+### Opción A: Despliegue Gestionado por Tags de Versión (Muestra `Deployed Version: v12.0.0` en Portainer)
 
 1. En tu panel de **Portainer**, ve a **Stacks** $\rightarrow$ **Add stack**.
 2. Selecciona **Repository** (Git Repository).
 3. Configura:
    * **Repository URL:** `https://github.com/adrianpalma360-create/InfraInventory`
-   * **Repository reference:** `refs/tags/v11.0.0` (o el tag semántico que desees desplegar)
+   * **Repository reference:** `refs/tags/v12.0.0` (o el tag semántico que desees desplegar)
    * **Compose path:** `docker-compose.portainer.yml`
 4. En **Environment variables**, define:
    ```env
    GHCR_NAMESPACE=adrianpalma360-create
-   IMAGE_TAG=11.0.0
+   IMAGE_TAG=12.0.0
    HTTP_PORT=3000
    POSTGRES_DB=infrainventory_db
    POSTGRES_USER=infrainventory_user
@@ -124,7 +169,7 @@ InfraInventory está preparado para desplegarse directamente en Portainer median
 
 1. En Portainer, configura **Repository reference:** `refs/heads/main` y activa la opción **Webhook**.
 2. Copia la URL del Webhook de Portainer y agrégala en los Secrets de tu repositorio GitHub con el nombre `PORTAINER_WEBHOOK_URL`.
-3. Cuando publiques una release en GitHub, GitHub Actions compilará las imágenes en GHCR (`:11.0.1` y `:latest`) y, **una vez que las imágenes estén publicadas**, notificará al webhook de Portainer para actualizar los contenedores automáticamente con `pull_policy: always`.
+3. Cuando publiques una release en GitHub, GitHub Actions compilará las imágenes en GHCR (`:12.0.0` y `:latest`) y, **una vez que las imágenes estén publicadas**, notificará al webhook de Portainer para actualizar los contenedores automáticamente con `pull_policy: always`.
 
 ---
 

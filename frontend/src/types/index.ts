@@ -336,6 +336,185 @@ export interface DashboardSummary {
   recentChanges: ChangeLog[];
 }
 
+export interface HealthScoreBreakdown {
+  availabilityScore: number;
+  alertsScore: number;
+  servicesScore: number;
+  resourcesScore: number;
+  formula: string;
+}
+
+export interface HealthScoreData {
+  score: number | null;
+  status: 'HEALTHY' | 'WARNING' | 'CRITICAL' | 'UNKNOWN';
+  label: string;
+  breakdown: HealthScoreBreakdown | null;
+}
+
+export interface NocCriticalAlert {
+  id: string;
+  machineId: string;
+  hostname: string;
+  primaryIp?: string | null;
+  metricType: string;
+  currentValue: number;
+  severity: string;
+  message: string;
+  detectedAt: string;
+}
+
+export interface TopResourceConsumer {
+  machineId: string;
+  hostname: string;
+  group?: string | null;
+  value: number;
+  status: string;
+}
+
+export interface ProblematicService {
+  id: string;
+  machineId: string;
+  hostname: string;
+  primaryIp?: string | null;
+  serviceName: string;
+  portNumber: number;
+  protocol: string;
+  status: HealthState;
+  latencyMs?: number | null;
+  responseTimeMs?: number | null;
+  details?: string | null;
+  lastChecked: string;
+}
+
+export interface AttentionDevice {
+  machineId: string;
+  hostname: string;
+  primaryIp?: string | null;
+  group?: string | null;
+  status: MachineStatus;
+  severity: 'CRITICAL' | 'WARNING' | 'OFFLINE';
+  reason: string;
+  openAlertsCount: number;
+  downServicesCount: number;
+  detectedAt: string;
+}
+
+export interface NocActivityItem {
+  id: string;
+  type: 'CHANGE' | 'DISCOVERY' | 'ALERT' | 'MAINTENANCE';
+  title: string;
+  details: string;
+  user: string;
+  timestamp: string;
+  severity?: 'CRITICAL' | 'WARNING' | 'INFO' | 'SUCCESS';
+  machineId?: string | null;
+  hostname?: string | null;
+}
+
+export interface NocHistoricalPoint {
+  timestamp: string;
+  timeLabel: string;
+  cpuUsage: number | null;
+  cpuMax?: number | null;
+  ramUsage: number | null;
+  ramMax?: number | null;
+  diskUsage: number | null;
+  diskMax?: number | null;
+  networkRxKbps: number | null;
+  networkTxKbps: number | null;
+  latencyMs: number | null;
+  samplesCount: number;
+}
+
+export interface NocDashboardOverview {
+  health: HealthScoreData;
+  devices: {
+    total: number;
+    online: number;
+    warning: number;
+    offline: number;
+    unchecked: number;
+    maintenance: number;
+  };
+  criticalAlerts: NocCriticalAlert[];
+  alerts: {
+    total: number;
+    critical: number;
+    warning: number;
+    info: number;
+    items: NocCriticalAlert[];
+  };
+  resources: {
+    cpuAvg: number | null;
+    cpuMax: number | null;
+    ramAvg: number | null;
+    ramMax: number | null;
+    diskAvg: number | null;
+    diskMax: number | null;
+    latencyAvg: number | null;
+    latencyMax: number | null;
+    reportingHostsCount: number;
+    totalHosts: number;
+  };
+  topResources: {
+    cpu: TopResourceConsumer[];
+    ram: TopResourceConsumer[];
+    disk: TopResourceConsumer[];
+  };
+  services: {
+    total: number;
+    healthy: number;
+    warning: number;
+    down: number;
+    problematic: ProblematicService[];
+  };
+  devicesRequiringAttention: AttentionDevice[];
+  activity: NocActivityItem[];
+  discovery: {
+    lastScan: DiscoveryScan | null;
+    totalNetworks: number;
+  };
+  monitoring: {
+    status: 'ONLINE' | 'OFFLINE';
+    lastExecution: string | null;
+    monitoredDevices: number;
+    totalChecks: number;
+    failures: number;
+    checkIntervalSec: number;
+  };
+  historical: {
+    period: string;
+    bucketSeconds: number;
+    pointsCount: number;
+    data: NocHistoricalPoint[];
+  };
+  filters: {
+    availableTags: Tag[];
+    availableGroups: string[];
+    availableLocations: Location[];
+    activeFilters: {
+      tag: string | null;
+      group: string | null;
+      locationId: string | null;
+      status: MachineStatus | null;
+      period: string;
+    };
+  };
+  meta: {
+    timestamp: string;
+    version: string;
+  };
+}
+
+export interface NocFilterParams {
+  tag?: string;
+  group?: string;
+  locationId?: string;
+  status?: MachineStatus;
+  period?: '1h' | '6h' | '24h' | '7d' | '30d';
+}
+
+
 export type ScanType = 'BASIC' | 'FULL' | 'CUSTOM';
 export type ScanStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 export type HostStatus = 'ONLINE' | 'OFFLINE' | 'UNRESPONSIVE';

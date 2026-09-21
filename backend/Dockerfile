@@ -23,7 +23,7 @@ RUN npm run build
 # Stage 2: Minimal Production Runtime
 FROM node:20-alpine AS runner
 
-ARG APP_VERSION=11.2.1
+ARG APP_VERSION=12.0.0
 
 LABEL org.opencontainers.image.title="InfraInventory Backend" \
       org.opencontainers.image.description="Fastify & Prisma REST/WebSocket API for InfraInventory NOC Platform" \
