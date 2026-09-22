@@ -4,6 +4,28 @@ Todas las modificaciones notables de este proyecto se documentan en este archivo
 
 ---
 
+## [15.0.0] - 2026-09-22
+
+### 🤖 InfraAI — Asistente de Operaciones IT (Estrictamente READ-ONLY)
+* **Asistente Inteligente de Operaciones IT:** Motor de IA conectado a datos reales de inventario, telemetría, alertas del NOC, discovery, servicios, puertos, backups, cambios y topología de red.
+* **Principio de Cero Alucinación & Fundamentación Determinista (Grounding):** Respuestas generadas a partir de herramientas internas de solo lectura. Si un dato no existe en InfraInventory, responde taxativamente con honestidad técnica sin inventar métricas ni estados.
+* **Citas de Fuentes & Enlaces Interactivos:** Respuestas acompañadas de fuentes consultadas (`Fuentes consultadas: Monitoring, Alerts, Inventory`) y chips de navegación interactiva directa a las fichas de los hosts implicados (`[Ver dispositivo]`).
+* **Seguridad Estricta & Política READ-ONLY Absoluta:**
+  * Prohibición absoluta de generación de SQL libre (`LLM -> SQL -> PostgreSQL`).
+  * Sin comandos de shell, SSH, WinRM, PowerShell ni reinicios/modificaciones de infraestructura.
+  * Control de acceso basado en roles (RBAC) previo a la invocación de cualquier herramienta.
+* **Sanitización Automática de Secretos (AES-256-GCM):** Enmascaramiento y purga automática de contraseñas, hashes, claves privadas, tokens de Telegram y JWTs antes de ser expuestos al modelo de lenguaje o a la UI.
+* **Defensa contra Prompt Injection:** Aislamiento de datos de infraestructura en bloques no ejecutables con directivas operativas estrictas.
+* **Flexibilidad de Proveedores LLM & Fallback Determinista:** Soporte nativo para Ollama (local-first) y APIs compatibles con OpenAI, con motor de razonamiento fundamentado autónomo capaz de responder aun sin servidor LLM activo.
+* **Integración Contextual en la Interfaz:**
+  * Botón contextual `[🤖 Analizar con InfraAI]` en el Dashboard NOC.
+  * Diagnóstico 360° en un clic desde la ficha técnica de cada Host (`MachineDetailPage.tsx`).
+  * Análisis de causa raíz y acciones sugeridas para cada anomalía en la bandeja de Alertas (`AlertsPage.tsx`).
+  * Módulo dedicado de Chat, Diagnóstico 360°, Informes Ejecutivos en Markdown y Panel de Control de Consultas IA.
+* **Política de Versionado Visual Limpio:** La versión `15.0.0` se preserva exclusivamente en "Acerca de" sin contaminar la UI general ni las respuestas de la IA.
+
+---
+
 ## [14.0.0] - 2026-09-22
 
 ### 🔔 Sistema de Alertas y Notificaciones por Telegram

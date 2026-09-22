@@ -2281,3 +2281,5 @@ model NotificationDeliveryLog {
   @@index([createdAt])
   @@map("notification_delivery_logs")
 }
+
+

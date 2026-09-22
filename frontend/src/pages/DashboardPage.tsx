@@ -18,7 +18,7 @@ import { NocDiscoveryWidget } from '../components/noc/NocDiscoveryWidget.js';
 import { NocMonitoringWidget } from '../components/noc/NocMonitoringWidget.js';
 import { NocActivityTimeline } from '../components/noc/NocActivityTimeline.js';
 import { NocFiltersBar } from '../components/noc/NocFiltersBar.js';
-import { Plus, RefreshCw, AlertOctagon, Server, Radar } from 'lucide-react';
+import { Plus, RefreshCw, AlertOctagon, Server, Radar, Bot } from 'lucide-react';
 import { Card } from '../components/ui/Card.js';
 
 interface DashboardPageProps {
@@ -36,6 +36,7 @@ interface DashboardPageProps {
   onNavigateToLocations?: () => void;
   onNavigateToTopology?: () => void;
   onNavigateToAssets?: () => void;
+  onNavigateToAi?: () => void;
   onOpenAddMachine: () => void;
 }
 
@@ -47,6 +48,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToGraphs,
   onNavigateToMonitoring,
   onNavigateToAlerts,
+  onNavigateToAi,
   onOpenAddMachine,
 }) => {
   const [data, setData] = useState<NocDashboardOverview | null>(null);
@@ -185,6 +187,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5">
+          {onNavigateToAi && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<Bot className="w-4 h-4 text-[#06B6D4]" />}
+              onClick={onNavigateToAi}
+              className="border-[#06B6D4]/30 hover:border-[#06B6D4] text-[#06B6D4]"
+            >
+              🤖 Analizar con InfraAI
+            </Button>
+          )}
           <Can permission="MACHINE_CREATE">
             <Button
               variant="cyan"

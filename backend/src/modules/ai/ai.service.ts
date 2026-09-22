@@ -1,7 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { AIToolRegistry } from './ai.tools.js';
 import { AIEngine, GroundedAIResponse } from './ai.engine.js';
-import { SafeSqlValidator } from './ai.sql-validator.js';
 import {
   ChatMessageInput,
   DirectQueryInput,
@@ -11,6 +10,7 @@ import {
   TestConnectionInput,
 } from './ai.schema.js';
 import { logChange } from '../../utils/changelog.js';
+import { encryptSecret, maskSecret } from '../../utils/encryption.js';
 
 export class AIService {
   private toolRegistry: AIToolRegistry;
@@ -27,7 +27,7 @@ export class AIService {
     if (!config) {
       config = await this.prisma.aIConfiguration.create({
         data: {
-          isEnabled: process.env.AI_ENABLED !== 'false',
+          isEnabled: process.env.AI_ENABLED === 'true',
           provider: process.env.AI_PROVIDER || 'ollama',
           baseUrl: process.env.AI_BASE_URL || 'http://ollama:11434',
           model: process.env.AI_MODEL || 'llama3:8b',
@@ -39,37 +39,71 @@ export class AIService {
         },
       });
     }
-    return config;
+
+    return {
+      ...config,
+      apiKeyEncrypted: config.apiKeyEncrypted ? maskSecret(config.apiKeyEncrypted) : null,
+      apiKeyConfigured: !!config.apiKeyEncrypted,
+    };
   }
 
   async updateConfig(input: AIConfigInput, actor = 'admin') {
-    const existing = await this.getConfig();
+    let config = await this.prisma.aIConfiguration.findFirst();
+    if (!config) {
+      config = await this.prisma.aIConfiguration.create({
+        data: {
+          isEnabled: input.isEnabled ?? false,
+          provider: input.provider || 'ollama',
+          baseUrl: input.baseUrl || 'http://ollama:11434',
+          model: input.model || 'llama3:8b',
+          timeoutMs: input.timeoutMs || 30000,
+          maxTokens: input.maxTokens || 2048,
+          temperature: input.temperature || 0.1,
+          rateLimitPerMinute: input.rateLimitPerMinute || 60,
+          maxHistoryMessages: input.maxHistoryMessages || 10,
+        },
+      });
+    }
+
+    const dataToUpdate: any = {};
+    if (typeof input.isEnabled === 'boolean') dataToUpdate.isEnabled = input.isEnabled;
+    if (input.provider) dataToUpdate.provider = input.provider;
+    if (input.baseUrl) dataToUpdate.baseUrl = input.baseUrl;
+    if (input.model) dataToUpdate.model = input.model;
+    if (input.timeoutMs !== undefined) dataToUpdate.timeoutMs = input.timeoutMs;
+    if (input.maxTokens !== undefined) dataToUpdate.maxTokens = input.maxTokens;
+    if (input.temperature !== undefined) dataToUpdate.temperature = input.temperature;
+    if (input.rateLimitPerMinute !== undefined) dataToUpdate.rateLimitPerMinute = input.rateLimitPerMinute;
+    if (input.maxHistoryMessages !== undefined) dataToUpdate.maxHistoryMessages = input.maxHistoryMessages;
+
+    if (input.apiKey !== undefined) {
+      const trimmed = typeof input.apiKey === 'string' ? input.apiKey.trim() : '';
+      if (trimmed && !trimmed.startsWith('********')) {
+        dataToUpdate.apiKeyEncrypted = encryptSecret(trimmed);
+      } else if (trimmed === '' || input.apiKey === null) {
+        dataToUpdate.apiKeyEncrypted = null;
+      }
+    }
+
     const updated = await this.prisma.aIConfiguration.update({
-      where: { id: existing.id },
-      data: {
-        isEnabled: input.isEnabled,
-        provider: input.provider,
-        baseUrl: input.baseUrl,
-        model: input.model,
-        apiKeyEncrypted: input.apiKey || existing.apiKeyEncrypted,
-        timeoutMs: input.timeoutMs,
-        maxTokens: input.maxTokens,
-        temperature: input.temperature,
-        rateLimitPerMinute: input.rateLimitPerMinute,
-        maxHistoryMessages: input.maxHistoryMessages,
-      },
+      where: { id: config.id },
+      data: dataToUpdate,
     });
 
     await logChange({
       prisma: this.prisma,
-      entityType: 'AIConfiguration',
+      entityType: 'Settings',
       entityId: updated.id,
       action: 'UPDATE' as any,
-      details: `Updated AI configuration (Provider: ${updated.provider}, Model: ${updated.model}, Enabled: ${updated.isEnabled})`,
+      details: `Configuración de InfraAI actualizada por ${actor} (Proveedor: ${updated.provider}, Modelo: ${updated.model}, Habilitado: ${updated.isEnabled})`,
       user: actor,
     });
 
-    return updated;
+    return {
+      ...updated,
+      apiKeyEncrypted: updated.apiKeyEncrypted ? maskSecret(updated.apiKeyEncrypted) : null,
+      apiKeyConfigured: !!updated.apiKeyEncrypted,
+    };
   }
 
   async testConnection(input: TestConnectionInput) {
@@ -78,14 +112,14 @@ export class AIService {
       if (input.provider === 'ollama') {
         const url = `${input.baseUrl.replace(/\/+$/, '')}/api/tags`;
         const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-        const data = await res.json().catch(() => ({}));
+        const data: any = await res.json().catch(() => ({}));
         const durationMs = Date.now() - startTime;
 
         if (res.ok) {
           const models = Array.isArray(data.models) ? data.models.map((m: any) => m.name) : [];
           return {
             success: true,
-            message: `Conexión exitosa con Ollama (${durationMs}ms). Modelos disponibles: ${models.join(', ') || 'ninguno descargado aún'}`,
+            message: `Conexión exitosa con Ollama (${durationMs}ms). Modelos disponibles: ${models.join(', ') || 'ninguno detectado'}`,
             models,
             latencyMs: durationMs,
           };
@@ -106,7 +140,7 @@ export class AIService {
         const durationMs = Date.now() - startTime;
         return {
           success: res.ok,
-          message: res.ok ? `Conexión exitosa (${durationMs}ms)` : `Error de conexión (HTTP ${res.status})`,
+          message: res.ok ? `Conexión exitosa con API compatible (${durationMs}ms)` : `Error de conexión (HTTP ${res.status})`,
           latencyMs: durationMs,
         };
       }
@@ -121,7 +155,14 @@ export class AIService {
 
   // Conversation and Chat
   async chat(input: ChatMessageInput, user: { id: string; role: any; username: string }) {
-    const config = await this.getConfig();
+    const config = await this.prisma.aIConfiguration.findFirst() || {
+      isEnabled: false,
+      provider: 'ollama',
+      baseUrl: 'http://ollama:11434',
+      model: 'llama3:8b',
+      apiKeyEncrypted: null,
+      maxHistoryMessages: 10,
+    };
 
     // 1. Load or create conversation
     let conversationId = input.conversationId;
@@ -180,7 +221,7 @@ export class AIService {
       querySuccess = false;
       queryError = err.message;
       aiResponse = {
-        content: `Ocurrió un error al procesar la consulta con InfraInventory AI: ${err.message}`,
+        content: `Ocurrió un error al procesar la consulta con InfraAI: ${err.message}`,
         findings: [],
         evidence: [],
         recommendations: ['Intente reformular la pregunta o verificar el estado de los servicios de IA.'],
@@ -226,7 +267,14 @@ export class AIService {
 
   // Direct safe query (Natural Language -> Tool execution)
   async query(input: DirectQueryInput, user: { id: string; role: any }) {
-    const config = await this.getConfig();
+    const config = await this.prisma.aIConfiguration.findFirst() || {
+      isEnabled: false,
+      provider: 'ollama',
+      baseUrl: 'http://ollama:11434',
+      model: 'llama3:8b',
+      apiKeyEncrypted: null,
+    };
+
     return this.engine.processPrompt(
       input.query,
       [],
@@ -245,39 +293,37 @@ export class AIService {
   // Deep Diagnostic & Root Cause Analysis
   async analyze(input: AnalyzeRequestInput, user: { id: string; role: any }) {
     if (input.targetType === 'MACHINE' && input.targetId) {
-      const machineDetails = await this.toolRegistry.executeTool('getMachine', { hostnameOrId: input.targetId }, user.role, user.id);
-      const metrics = await this.toolRegistry.executeTool('getMachineMetrics', { hostnameOrId: input.targetId, limit: 50 }, user.role, user.id);
-      const incidents = await this.toolRegistry.executeTool('getIncidents', { hostname: machineDetails.data?.hostname, limit: 10 }, user.role, user.id);
-      const tickets = await this.toolRegistry.executeTool('getTickets', { limit: 10 }, user.role, user.id);
+      const machineDetails = await this.toolRegistry.executeTool('get_device', { hostnameOrId: input.targetId }, user.role, user.id);
+      const metrics = await this.toolRegistry.executeTool('get_device_metrics', { hostnameOrId: input.targetId, limit: 50 }, user.role, user.id);
+      const incidents = await this.toolRegistry.executeTool('get_active_alerts', { limit: 10 }, user.role, user.id);
 
       const m = machineDetails.data;
       if (!m || m.error) {
         throw new Error(m?.error || 'Máquina no encontrada');
       }
 
+      const hostIncidents = (incidents.data || []).filter((i: any) => i.machine === m.hostname || i.ip === m.primaryIp);
+
       const findings = [
         { label: 'Estado del Host', value: m.status, severity: m.status === 'ONLINE' ? 'HEALTHY' : 'WARNING' },
-        { label: 'Carga de CPU Media', value: `${metrics.data?.averages?.cpuPercent ?? 'N/A'}% (Pico: ${metrics.data?.averages?.maxCpuPercent ?? 'N/A'}%)`, severity: (metrics.data?.averages?.cpuPercent || 0) > 80 ? 'CRITICAL' : 'HEALTHY' },
-        { label: 'Uso de Memoria RAM', value: `${metrics.data?.averages?.ramPercent ?? 'N/A'}%`, severity: (metrics.data?.averages?.ramPercent || 0) > 85 ? 'WARNING' : 'HEALTHY' },
-        { label: 'Latencia Media de Red', value: `${metrics.data?.averages?.latencyMs ?? 'N/A'} ms`, severity: 'INFO' },
-        { label: 'Incidentes Activos', value: `${incidents.data?.length || 0}`, severity: incidents.data?.length > 0 ? 'WARNING' : 'HEALTHY' },
+        { label: 'Carga de CPU Media', value: `${metrics.data?.stats?.cpuAvg ?? 'N/A'}% (Pico: ${metrics.data?.stats?.cpuMax ?? 'N/A'}%)`, severity: (metrics.data?.stats?.cpuAvg || 0) > 80 ? 'CRITICAL' : 'HEALTHY' },
+        { label: 'Uso de Memoria RAM', value: `${metrics.data?.stats?.ramAvg ?? 'N/A'}%`, severity: (metrics.data?.stats?.ramAvg || 0) > 85 ? 'WARNING' : 'HEALTHY' },
+        { label: 'Latencia Media de Red', value: `${metrics.data?.stats?.latencyAvg ?? 'N/A'} ms`, severity: 'INFO' },
+        { label: 'Alertas Activas', value: `${hostIncidents.length}`, severity: hostIncidents.length > 0 ? 'WARNING' : 'HEALTHY' },
       ];
 
       const recommendations: string[] = [];
-      if ((metrics.data?.averages?.cpuPercent || 0) > 80) {
+      if ((metrics.data?.stats?.cpuAvg || 0) > 80) {
         recommendations.push('Revisar procesos en segundo plano o balancear carga de trabajo con un nodo réplica.');
       }
-      if (incidents.data?.length > 0) {
-        recommendations.push('Atender los incidentes de servicio no resueltos para restaurar la salud telemétrica.');
-      }
-      if (!m.asset?.warrantyEnd) {
-        recommendations.push('Registrar la fecha de garantía del activo en el módulo de Hardware para trazabilidad.');
+      if (hostIncidents.length > 0) {
+        recommendations.push('Atender las alertas activas de este host para evitar degradación de servicio.');
       }
 
       return {
         target: m.hostname,
         targetType: 'MACHINE',
-        summary: `Diagnóstico 360° completado para ${m.hostname}. El equipo opera en estado ${m.status} con ${m.ports.length} puertos activos y ${incidents.data?.length || 0} incidentes registrados.`,
+        summary: `Diagnóstico 360° completado para ${m.hostname}. El equipo opera en estado ${m.status} con ${m.ports.length} puertos activos y ${hostIncidents.length} incidencias registradas.`,
         findings,
         evidence: [
           { source: `Métricas de ${m.hostname}`, detail: `Histórico de ${metrics.data?.samplesCount || 0} muestras` },
@@ -286,20 +332,43 @@ export class AIService {
         recommendations: recommendations.length > 0 ? recommendations : ['El servidor opera dentro de los rangos óptimos esperados.'],
         relatedEntities: [
           { type: 'machine', id: m.id, label: m.hostname },
-          ...(incidents.data || []).map((i: any) => ({ type: 'incident', id: i.id, label: `Incidente: ${i.metricType}` })),
+          ...hostIncidents.map((i: any) => ({ type: 'incident', id: i.id, label: `Alerta: ${i.metricType}` })),
         ],
       };
     }
 
+    if (input.targetType === 'ALERT' && input.targetId) {
+      const alerts = await this.toolRegistry.executeTool('get_active_alerts', { limit: 50 }, user.role, user.id);
+      const targetAlert = (alerts.data || []).find((a: any) => a.id === input.targetId);
+
+      if (!targetAlert) {
+        throw new Error('Alerta no encontrada o ya resuelta');
+      }
+
+      return {
+        target: targetAlert.machine || 'General',
+        targetType: 'ALERT',
+        summary: `Análisis de alerta [${targetAlert.severity}] en ${targetAlert.machine}: ${targetAlert.message}`,
+        findings: [
+          { label: 'Severidad', value: targetAlert.severity, severity: targetAlert.severity === 'CRITICAL' ? 'CRITICAL' : 'WARNING' },
+          { label: 'Tipo de Métrica', value: targetAlert.metricType, severity: 'INFO' },
+          { label: 'Valor Actual', value: `${targetAlert.currentValue || 'N/A'}`, severity: 'WARNING' },
+        ],
+        evidence: [{ source: 'NOC Alerts', detail: `Incidencia detectada a las ${new Date(targetAlert.detectedAt).toLocaleTimeString()}` }],
+        recommendations: ['Verificar la telemetría del host y revisar procesos asociados.'],
+        relatedEntities: [{ type: 'incident', id: targetAlert.id, label: `${targetAlert.machine} - ${targetAlert.metricType}` }],
+      };
+    }
+
     // Default general analysis
-    const overview = await this.toolRegistry.executeTool('getDashboardStats', {}, user.role, user.id);
+    const overview = await this.toolRegistry.executeTool('get_inventory_summary', {}, user.role, user.id);
     return {
       targetType: input.targetType,
       summary: 'Análisis global de salud de infraestructura completado.',
       findings: [
         { label: 'Disponibilidad Global', value: overview.data?.infrastructure?.healthRate || '100%', severity: 'HEALTHY' },
         { label: 'Hosts Totales', value: `${overview.data?.infrastructure?.totalHosts || 0}`, severity: 'INFO' },
-        { label: 'Incidentes Activos', value: `${overview.data?.operations?.activeIncidents || 0}`, severity: 'INFO' },
+        { label: 'Incidentes Activos', value: `${overview.data?.alerts?.activeIncidents || 0}`, severity: 'INFO' },
       ],
       evidence: [{ source: 'NOC Aggregator', detail: 'Consolidación de métricas de todos los nodos' }],
       recommendations: ['Mantener la supervisión de alertas en tiempo real.'],
@@ -309,11 +378,9 @@ export class AIService {
 
   // Infrastructure Technical & Executive Reports
   async generateReport(input: ReportRequestInput, user: { id: string; role: any }) {
-    const stats = await this.toolRegistry.executeTool('getDashboardStats', {}, user.role, user.id);
-    const machines = await this.toolRegistry.executeTool('searchMachines', { limit: 100 }, user.role, user.id);
-    const incidents = await this.toolRegistry.executeTool('getIncidents', { limit: 50 }, user.role, user.id);
-    const tickets = await this.toolRegistry.executeTool('getTickets', { limit: 50 }, user.role, user.id);
-    const assets = await this.toolRegistry.executeTool('getAssets', { limit: 50 }, user.role, user.id);
+    const stats = await this.toolRegistry.executeTool('get_inventory_summary', {}, user.role, user.id);
+    const machines = await this.toolRegistry.executeTool('get_devices', { limit: 50 }, user.role, user.id);
+    const alerts = await this.toolRegistry.executeTool('get_active_alerts', { limit: 20 }, user.role, user.id);
 
     const generatedAt = new Date().toISOString();
     const title = `Informe de Infraestructura TI - ${input.reportType} (${input.period})`;
@@ -321,7 +388,7 @@ export class AIService {
     let markdown = `# 📊 ${title}\n`;
     markdown += `**Generado por**: InfraInventory AI (Usuario: \`${user.role}\`)  \n`;
     markdown += `**Fecha de Emisión**: ${new Date().toLocaleString()}  \n`;
-    markdown += `**Plataforma**: InfraInventory V10 © 2026 Adrian Palma\n\n`;
+    markdown += `**Plataforma**: InfraInventory\n\n`;
 
     markdown += `## 1. Resumen Ejecutivo de Disponibilidad\n`;
     markdown += `- **Hosts Totales**: ${stats.data?.infrastructure?.totalHosts || 0}\n`;
@@ -330,11 +397,9 @@ export class AIService {
     markdown += `- **Hosts en Estado Warning / Degradado**: ${stats.data?.infrastructure?.warning || 0}\n`;
     markdown += `- **Hosts Offline**: ${stats.data?.infrastructure?.offline || 0}\n\n`;
 
-    markdown += `## 2. Operaciones & Helpdesk NOC\n`;
-    markdown += `- **Incidentes de Monitorización Activos**: ${stats.data?.operations?.activeIncidents || 0}\n`;
-    markdown += `- **Tickets de Soporte Abiertos**: ${stats.data?.operations?.openTickets || 0}\n`;
-    markdown += `- **Tickets Críticos con SLA Activo**: ${stats.data?.operations?.criticalTickets || 0}\n`;
-    markdown += `- **Cambios RFC Pendientes**: ${stats.data?.operations?.pendingChanges || 0}\n\n`;
+    markdown += `## 2. Operaciones & Alertas NOC\n`;
+    markdown += `- **Incidentes de Monitorización Activos**: ${stats.data?.alerts?.activeIncidents || 0}\n`;
+    markdown += `- **Alertas Críticas**: ${stats.data?.alerts?.criticalAlerts || 0}\n\n`;
 
     markdown += `## 3. Inventario de Servidores Principales\n`;
     markdown += `| Hostname | IP Primaria | Estado | Sistema Operativo | Grupo |\n`;

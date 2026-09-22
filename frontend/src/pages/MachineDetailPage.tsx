@@ -27,6 +27,7 @@ import {
   Trash2,
   MapPin,
   RefreshCw,
+  Bot,
 } from 'lucide-react';
 
 interface MachineDetailPageProps {
@@ -41,6 +42,11 @@ export const MachineDetailPage: React.FC<MachineDetailPageProps> = ({ machineId,
   const [vlans, setVlans] = useState<VLAN[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'interfaces' | 'ports' | 'history'>('interfaces');
+
+  // AI Diagnostic State
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
+  const [aiAnalysisResult, setAiAnalysisResult] = useState<any | null>(null);
 
   // Interface Modal State
   const [isInterfaceModalOpen, setIsInterfaceModalOpen] = useState(false);
@@ -178,6 +184,22 @@ export const MachineDetailPage: React.FC<MachineDetailPageProps> = ({ machineId,
     }
   };
 
+  const handleRunAiAnalysis = async () => {
+    setIsAiModalOpen(true);
+    setIsAiAnalyzing(true);
+    try {
+      const res = await api.sendAIAnalyze({
+        targetType: 'MACHINE',
+        targetId: machineId,
+      });
+      setAiAnalysisResult(res);
+    } catch (err: any) {
+      toast.error('Error al analizar host con InfraAI', err.message);
+    } finally {
+      setIsAiAnalyzing(false);
+    }
+  };
+
   const handleDeletePort = async () => {
     if (!deletePortTarget) return;
     try {
@@ -225,6 +247,15 @@ export const MachineDetailPage: React.FC<MachineDetailPageProps> = ({ machineId,
           </div>
         </div>
         <div className="flex items-center gap-2.5">
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Bot className="w-4 h-4 text-[#06B6D4]" />}
+            onClick={handleRunAiAnalysis}
+            className="border-[#06B6D4]/30 hover:border-[#06B6D4] text-[#06B6D4]"
+          >
+            🤖 Analizar con InfraAI
+          </Button>
           <Button
             variant="secondary"
             size="sm"
@@ -745,6 +776,78 @@ export const MachineDetailPage: React.FC<MachineDetailPageProps> = ({ machineId,
         message={`¿Estás seguro de desvincular el puerto ${deletePortTarget?.portNumber}/${deletePortTarget?.protocol}?`}
         isDestructive
       />
+
+      {/* AI Diagnostic Modal */}
+      <Modal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        title={`Diagnóstico Inteligente con InfraAI — ${machine.hostname}`}
+        size="lg"
+      >
+        <div className="space-y-4">
+          {isAiAnalyzing ? (
+            <div className="p-8 flex flex-col items-center justify-center space-y-3">
+              <div className="w-10 h-10 border-3 border-[#06B6D4] border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs text-[#94A3B8]">
+                InfraAI está consultando métricas, alertas activas y telemetría de <span className="text-[#06B6D4] font-semibold">{machine.hostname}</span>...
+              </p>
+            </div>
+          ) : aiAnalysisResult ? (
+            <div className="space-y-4 text-xs">
+              <div className="p-4 rounded-xl bg-[#151B23] border border-[#252D38] space-y-2">
+                <div className="flex items-center gap-2 text-[#06B6D4] font-semibold">
+                  <Bot className="w-4 h-4" />
+                  <span>Diagnóstico y Análisis Operativo:</span>
+                </div>
+                <div className="text-[#F1F5F9] whitespace-pre-wrap leading-relaxed">
+                  {aiAnalysisResult.analysis}
+                </div>
+              </div>
+
+              {aiAnalysisResult.findings && aiAnalysisResult.findings.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                    Hallazgos Clave:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {aiAnalysisResult.findings.map((f: string, i: number) => (
+                      <span
+                        key={i}
+                        className="px-2.5 py-1 rounded-md text-[11px] bg-[#151B23] border border-[#06B6D4]/30 text-[#06B6D4]"
+                      >
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {aiAnalysisResult.recommendations && aiAnalysisResult.recommendations.length > 0 && (
+                <div className="p-3.5 rounded-lg bg-[#22C55E]/10 border border-[#22C55E]/20 space-y-1.5">
+                  <span className="text-[11px] font-semibold text-[#22C55E]">
+                    Recomendaciones Operativas:
+                  </span>
+                  <ul className="list-disc list-inside space-y-1 text-[#F1F5F9]">
+                    {aiAnalysisResult.recommendations.map((r: string, i: number) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-3 border-t border-[#252D38]">
+                <Button variant="secondary" size="sm" onClick={() => setIsAiModalOpen(false)}>
+                  Cerrar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-6 text-[#94A3B8]">
+              No se pudo obtener el diagnóstico del dispositivo.
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };

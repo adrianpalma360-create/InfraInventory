@@ -96,6 +96,7 @@ export const AppContent: React.FC = () => {
                 onNavigateToLocations={() => handleSelectTab('locations')}
                 onNavigateToTopology={() => handleSelectTab('topology')}
                 onNavigateToAssets={() => handleSelectTab('assets')}
+                onNavigateToAi={() => handleSelectTab('ai')}
                 onOpenAddMachine={handleOpenAddMachine}
               />
             )}

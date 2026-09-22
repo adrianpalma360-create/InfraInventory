@@ -323,12 +323,12 @@ export const AiAssistantPage: React.FC<AiAssistantPageProps> = ({
   };
 
   const samplePrompts = [
-    '¿Qué servidores están teniendo problemas de rendimiento?',
-    '¿Qué máquinas están caídas o en warning?',
-    'Compara los servidores principales de producción',
-    '¿Qué licencias o garantías están próximas a vencer?',
-    '¿Qué tickets críticos están abiertos?',
-    '¿Qué mantenimientos tenemos programados?',
+    '¿Qué dispositivos están offline?',
+    '¿Qué servidores tienen problemas?',
+    '¿Qué alertas críticas hay?',
+    '¿Qué cambió en las últimas 24 horas?',
+    '¿Cómo está la infraestructura?',
+    '¿Qué backups han fallado?',
   ];
 
   return (

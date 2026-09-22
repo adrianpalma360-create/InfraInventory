@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, MachineStatus } from '@prisma/client';
 import { Permission, hasPermission } from '../../utils/permissions.js';
+import { sanitizeSecrets } from './ai.sanitizer.js';
 
 export interface ToolDefinition {
   name: string;
@@ -46,7 +47,8 @@ export class AIToolRegistry {
     }
 
     try {
-      const data = await tool.execute(params, { prisma: this.prisma, userRole, userId });
+      const rawData = await tool.execute(params, { prisma: this.prisma, userRole, userId });
+      const data = sanitizeSecrets(rawData);
       return { success: true, data };
     } catch (err: any) {
       return { success: false, error: err.message || 'Error interno ejecutando la herramienta' };
@@ -54,9 +56,11 @@ export class AIToolRegistry {
   }
 
   private registerAllTools() {
-    // 1. Search Machines
-    this.register({
-      name: 'searchMachines',
+    // ----------------------------------------------------
+    // 1. Devices & Hosts Search (get_devices / searchMachines)
+    // ----------------------------------------------------
+    const searchMachinesTool: ToolDefinition = {
+      name: 'get_devices',
       description: 'Busca máquinas/servidores por nombre, IP, estado (ONLINE, OFFLINE, WARNING, UNCHECKED), SO, grupo o tag',
       requiredPermission: 'MACHINE_READ',
       parameters: {
@@ -88,7 +92,7 @@ export class AIToolRegistry {
 
         const machines = await prisma.machine.findMany({
           where,
-          take: params.limit || 20,
+          take: Math.min(params.limit || 20, 50),
           include: {
             location: { select: { id: true, name: true } },
             vlan: { select: { id: true, name: true, vlanId: true } },
@@ -111,11 +115,15 @@ export class AIToolRegistry {
           assetTag: m.assets?.[0]?.assetTag,
         }));
       },
-    });
+    };
+    this.register(searchMachinesTool);
+    this.register({ ...searchMachinesTool, name: 'searchMachines' });
 
-    // 2. Get Machine Details
-    this.register({
-      name: 'getMachine',
+    // ----------------------------------------------------
+    // 2. Device Details (get_device / getMachine)
+    // ----------------------------------------------------
+    const getMachineTool: ToolDefinition = {
+      name: 'get_device',
       description: 'Obtiene el detalle completo de un host/servidor específico incluyendo interfaces, IPs, puertos y servicios',
       requiredPermission: 'MACHINE_READ',
       parameters: {
@@ -202,12 +210,16 @@ export class AIToolRegistry {
           } : null,
         };
       },
-    });
+    };
+    this.register(getMachineTool);
+    this.register({ ...getMachineTool, name: 'getMachine' });
 
-    // 3. Get Machine Metrics
-    this.register({
-      name: 'getMachineMetrics',
-      description: 'Consulta el rendimiento histórico y telemetría de un host (CPU, RAM, Disco, Latencia, Conexiones)',
+    // ----------------------------------------------------
+    // 3. Telemetry & Metrics (get_device_metrics / getMachineMetrics)
+    // ----------------------------------------------------
+    const getMachineMetricsTool: ToolDefinition = {
+      name: 'get_device_metrics',
+      description: 'Consulta el rendimiento histórico y telemetría de un host (CPU, RAM, Disco, Latencia)',
       requiredPermission: 'METRICS_READ',
       parameters: {
         type: 'object',
@@ -234,31 +246,60 @@ export class AIToolRegistry {
         const samples = await prisma.metricSample.findMany({
           where: { machineId: machine.id },
           orderBy: { timestamp: 'desc' },
-          take: params.limit || 30,
+          take: Math.min(params.limit || 30, 100),
         });
+
+        if (samples.length === 0) {
+          return {
+            host: machine.hostname,
+            status: machine.status,
+            samplesCount: 0,
+            summary: 'No hay telemetría histórica registrada para este host.',
+            metrics: [],
+          };
+        }
+
+        const validCpu = samples.map((s) => s.cpuUsage).filter((v): v is number => v !== null && v !== undefined);
+        const validRam = samples.map((s) => s.ramUsage).filter((v): v is number => v !== null && v !== undefined);
+        const validDisk = samples.map((s) => s.diskUsage).filter((v): v is number => v !== null && v !== undefined);
+        const validLatency = samples.map((s) => s.latencyMs).filter((v): v is number => v !== null && v !== undefined);
+
+        const avg = (arr: number[]) => (arr.length > 0 ? Number((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1)) : null);
+        const max = (arr: number[]) => (arr.length > 0 ? Number(Math.max(...arr).toFixed(1)) : null);
 
         return {
           host: machine.hostname,
           status: machine.status,
           samplesCount: samples.length,
-          metrics: samples.map((s) => ({
+          stats: {
+            cpuAvg: avg(validCpu),
+            cpuMax: max(validCpu),
+            ramAvg: avg(validRam),
+            ramMax: max(validRam),
+            diskAvg: avg(validDisk),
+            diskMax: max(validDisk),
+            latencyAvg: avg(validLatency),
+          },
+          metrics: samples.slice(0, 10).map((s) => ({
             time: s.timestamp,
             cpu: s.cpuUsage,
             ram: s.ramUsage,
             disk: s.diskUsage,
             latencyMs: s.latencyMs,
-            rxKbps: s.networkRxKbps,
-            txKbps: s.networkTxKbps,
             state: s.healthState,
           })),
         };
       },
-    });
+    };
+    this.register(getMachineMetricsTool);
+    this.register({ ...getMachineMetricsTool, name: 'getMachineMetrics' });
 
-    // 4. Incidents & Anomalies
-    this.register({
-      name: 'getActiveIncidents',
-      description: 'Consulta las anomalías estadísticas y fallos activos detectados por el sistema de monitorización NOC',
+    // ----------------------------------------------------
+    // 4. Incidents & Active Alerts (get_active_alerts / getActiveIncidents)
+    // ----------------------------------------------------
+    const getActiveIncidentsTool: ToolDefinition = {
+      name: 'get_active_alerts',
+      description: 'Consulta las anomalías y alertas activas detectadas por la monitorización NOC',
       requiredPermission: 'METRICS_READ',
       parameters: {
         type: 'object',
@@ -270,12 +311,12 @@ export class AIToolRegistry {
       },
       execute: async (params, { prisma }) => {
         const where: any = {};
-        if (params.onlyUnresolved !== false) where.isResolved = false;
+        if (params.onlyUnresolved !== false) where.resolvedAt = null;
         if (params.severity) where.severity = params.severity;
 
         const incidents = await prisma.metricAnomaly.findMany({
           where,
-          take: params.limit || 20,
+          take: Math.min(params.limit || 20, 50),
           orderBy: { detectedAt: 'desc' },
           include: { machine: { select: { id: true, hostname: true, primaryIp: true } } },
         });
@@ -291,22 +332,276 @@ export class AIToolRegistry {
           message: i.message,
           detectedAt: i.detectedAt,
           isResolved: !!i.resolvedAt,
-          isSuppressed: i.isSuppressed,
-          suppressedReason: i.suppressedReason,
         }));
       },
-    });
+    };
+    this.register(getActiveIncidentsTool);
+    this.register({ ...getActiveIncidentsTool, name: 'getActiveIncidents' });
 
-    // 5. IPAM & Subnets
-    this.register({
-      name: 'searchIPAM',
-      description: 'Consulta redes, VLANs y asignación de direcciones IP libres, ocupadas o en conflicto',
+    // ----------------------------------------------------
+    // 5. Offline Devices (get_offline_devices / getOfflineDevices)
+    // ----------------------------------------------------
+    const getOfflineDevicesTool: ToolDefinition = {
+      name: 'get_offline_devices',
+      description: 'Consulta todos los dispositivos y servidores actualmente inaccesibles u OFFLINE',
+      requiredPermission: 'MACHINE_READ',
+      parameters: { type: 'object', properties: {} },
+      execute: async (_, { prisma }) => {
+        const offline = await prisma.machine.findMany({
+          where: { status: MachineStatus.OFFLINE },
+          include: {
+            location: { select: { name: true } },
+            tags: { select: { tag: { select: { name: true } } } },
+          },
+          orderBy: { hostname: 'asc' },
+        });
+
+        return offline.map((m: any) => ({
+          id: m.id,
+          hostname: m.hostname,
+          primaryIp: m.primaryIp,
+          group: m.group,
+          os: m.os,
+          location: m.location?.name,
+          tags: m.tags?.map((t: any) => t.tag?.name) || [],
+          lastDiscoveredAt: m.lastDiscoveredAt,
+        }));
+      },
+    };
+    this.register(getOfflineDevicesTool);
+    this.register({ ...getOfflineDevicesTool, name: 'getOfflineDevices' });
+
+    // ----------------------------------------------------
+    // 6. Discovery Results (get_discovery_results / getDiscoveryResults)
+    // ----------------------------------------------------
+    const getDiscoveryResultsTool: ToolDefinition = {
+      name: 'get_discovery_results',
+      description: 'Consulta los últimos escaneos de red, nuevos dispositivos descubiertos y cambios detectados en topología',
+      requiredPermission: 'DISCOVERY_READ',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', default: 5 },
+        },
+      },
+      execute: async (params, { prisma }) => {
+        const scans = await prisma.discoveryScan.findMany({
+          take: Math.min(params.limit || 5, 20),
+          orderBy: { startedAt: 'desc' },
+          include: {
+            hosts: { take: 10 },
+            changes: { take: 10 },
+          },
+        });
+
+        return scans.map((s) => ({
+          id: s.id,
+          networkCidr: s.networkCidr,
+          status: s.status,
+          startedAt: s.startedAt,
+          activeHosts: s.activeHosts,
+          newDevicesCount: s.newDevices,
+          changedDevicesCount: s.changedDevices,
+          missingDevicesCount: s.missingDevices,
+          recentChanges: s.changes.map((c) => ({
+            type: c.changeType,
+            hostname: c.hostname,
+            ip: c.ip,
+            details: c.details,
+          })),
+        }));
+      },
+    };
+    this.register(getDiscoveryResultsTool);
+    this.register({ ...getDiscoveryResultsTool, name: 'getDiscoveryResults' });
+
+    // ----------------------------------------------------
+    // 7. Backup Status & Integrity (get_backup_status / getBackupStatus)
+    // ----------------------------------------------------
+    const getBackupStatusTool: ToolDefinition = {
+      name: 'get_backup_status',
+      description: 'Consulta el estado, historial e integridad SHA-256 de las copias de seguridad de la infraestructura',
+      requiredPermission: 'SETTINGS_READ',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', default: 10 },
+        },
+      },
+      execute: async (params, { prisma }) => {
+        const backups = await prisma.backup.findMany({
+          take: Math.min(params.limit || 10, 30),
+          orderBy: { createdAt: 'desc' },
+        });
+
+        return backups.map((b) => ({
+          id: b.id,
+          name: b.name,
+          type: b.type,
+          status: b.status,
+          sizeBytes: b.sizeBytes,
+          tablesCount: b.tablesCount,
+          recordsCount: b.recordsCount,
+          isProtected: b.isProtected,
+          createdAt: b.createdAt,
+          errorDetails: b.errorDetails,
+        }));
+      },
+    };
+    this.register(getBackupStatusTool);
+    this.register({ ...getBackupStatusTool, name: 'getBackupStatus' });
+
+    // ----------------------------------------------------
+    // 8. Infrastructure Overview (get_inventory_summary / getDashboardStats)
+    // ----------------------------------------------------
+    const getDashboardStatsTool: ToolDefinition = {
+      name: 'get_inventory_summary',
+      description: 'Obtiene un resumen global en tiempo real de toda la infraestructura (dispositivos por estado, incidentes, tickets y capacidad)',
+      requiredPermission: 'SETTINGS_READ',
+      parameters: { type: 'object', properties: {} },
+      execute: async (_, { prisma }) => {
+        const [
+          totalMachines,
+          onlineMachines,
+          warningMachines,
+          offlineMachines,
+          activeIncidents,
+          criticalAlerts,
+          openTickets,
+          totalBackups,
+          failedBackups,
+        ] = await Promise.all([
+          prisma.machine.count(),
+          prisma.machine.count({ where: { status: 'ONLINE' } }),
+          prisma.machine.count({ where: { status: 'WARNING' } }),
+          prisma.machine.count({ where: { status: 'OFFLINE' } }),
+          prisma.metricAnomaly.count({ where: { resolvedAt: null } }),
+          prisma.metricAnomaly.count({ where: { resolvedAt: null, severity: 'CRITICAL' } }),
+          prisma.ticket.count({ where: { status: { in: ['OPEN', 'IN_PROGRESS', 'PENDING', 'WAITING'] } } }),
+          prisma.backup.count(),
+          prisma.backup.count({ where: { status: 'FAILED' } }),
+        ]);
+
+        return {
+          infrastructure: {
+            totalHosts: totalMachines,
+            online: onlineMachines,
+            warning: warningMachines,
+            offline: offlineMachines,
+            healthRate: totalMachines > 0 ? `${Math.round((onlineMachines / totalMachines) * 100)}%` : '100%',
+          },
+          alerts: {
+            activeIncidents,
+            criticalAlerts,
+          },
+          operations: {
+            openTickets,
+            totalBackups,
+            failedBackups,
+          },
+        };
+      },
+    };
+    this.register(getDashboardStatsTool);
+    this.register({ ...getDashboardStatsTool, name: 'getDashboardStats' });
+
+    // ----------------------------------------------------
+    // 9. Recent Activity & Audit (get_recent_activity / getRecentActivity)
+    // ----------------------------------------------------
+    const getRecentActivityTool: ToolDefinition = {
+      name: 'get_recent_activity',
+      description: 'Consulta los cambios y eventos recientes registrados en el registro de auditoría (ChangeLog)',
+      requiredPermission: 'CHANGE_READ',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', default: 20 },
+        },
+      },
+      execute: async (params, { prisma }) => {
+        const logs = await prisma.changeLog.findMany({
+          take: Math.min(params.limit || 20, 50),
+          orderBy: { createdAt: 'desc' },
+        });
+
+        return logs.map((l) => ({
+          id: l.id,
+          entityType: l.entityType,
+          action: l.action,
+          details: l.details,
+          user: l.user,
+          createdAt: l.createdAt,
+        }));
+      },
+    };
+    this.register(getRecentActivityTool);
+    this.register({ ...getRecentActivityTool, name: 'getRecentActivity' });
+
+    // ----------------------------------------------------
+    // 10. Groups & Categories (get_groups / getGroups)
+    // ----------------------------------------------------
+    const getGroupsTool: ToolDefinition = {
+      name: 'get_groups',
+      description: 'Consulta los grupos funcionales de máquinas y la cantidad de equipos en cada uno',
+      requiredPermission: 'MACHINE_READ',
+      parameters: { type: 'object', properties: {} },
+      execute: async (_, { prisma }) => {
+        const machines = await prisma.machine.findMany({
+          select: { group: true, status: true },
+        });
+
+        const map: Record<string, { total: number; online: number; offline: number; warning: number }> = {};
+        for (const m of machines) {
+          const g = m.group || 'Sin Grupo';
+          if (!map[g]) map[g] = { total: 0, online: 0, offline: 0, warning: 0 };
+          map[g].total++;
+          if (m.status === 'ONLINE') map[g].online++;
+          if (m.status === 'OFFLINE') map[g].offline++;
+          if (m.status === 'WARNING') map[g].warning++;
+        }
+
+        return Object.entries(map).map(([group, counts]) => ({ group, ...counts }));
+      },
+    };
+    this.register(getGroupsTool);
+    this.register({ ...getGroupsTool, name: 'getGroups' });
+
+    // ----------------------------------------------------
+    // 11. Tags (get_tags / getTags)
+    // ----------------------------------------------------
+    const getTagsTool: ToolDefinition = {
+      name: 'get_tags',
+      description: 'Consulta las etiquetas/tags asignadas a los dispositivos de infraestructura',
+      requiredPermission: 'TAG_READ',
+      parameters: { type: 'object', properties: {} },
+      execute: async (_, { prisma }) => {
+        const tags = await prisma.tag.findMany({
+          include: { _count: { select: { machines: true } } },
+          orderBy: { name: 'asc' },
+        });
+
+        return tags.map((t) => ({
+          id: t.id,
+          name: t.name,
+          color: t.color,
+          assignedMachinesCount: t._count.machines,
+        }));
+      },
+    };
+    this.register(getTagsTool);
+    this.register({ ...getTagsTool, name: 'getTags' });
+
+    // ----------------------------------------------------
+    // 12. IPAM & Subnets (get_network_ipam / searchIPAM)
+    // ----------------------------------------------------
+    const searchIPAMTool: ToolDefinition = {
+      name: 'get_network_ipam',
+      description: 'Consulta redes, VLANs y asignación de direcciones IP',
       requiredPermission: 'IPAM_READ',
       parameters: {
         type: 'object',
         properties: {
           cidrOrVlan: { type: 'string', description: 'CIDR e.g. "192.168.1.0/24" o número de VLAN' },
-          status: { type: 'string', enum: ['FREE', 'ASSIGNED', 'RESERVED', 'DHCP', 'CONFLICT'] },
           limit: { type: 'number', default: 25 },
         },
       },
@@ -315,308 +610,28 @@ export class AIToolRegistry {
           include: { vlan: true, _count: { select: { ipAddresses: true } } },
         });
 
-        const where: any = {};
-        if (params.status) where.status = params.status;
-        if (params.cidrOrVlan) {
-          where.OR = [
-            { subnet: { contains: params.cidrOrVlan } },
-            { address: { contains: params.cidrOrVlan } },
-            { network: { cidr: { contains: params.cidrOrVlan } } },
-          ];
-        }
-
-        const ips = await prisma.iPAddress.findMany({
-          where,
-          take: params.limit || 25,
-          include: { machine: { select: { hostname: true } } },
-          orderBy: { address: 'asc' },
-        });
-
-        return {
-          networks: networks.map((n) => ({
-            name: n.name,
-            cidr: n.cidr,
-            vlan: n.vlan ? `${n.vlan.name} (VLAN ${n.vlan.vlanId})` : 'Sin VLAN',
-            dhcp: n.dhcpEnabled,
-            ipsRegistered: n._count.ipAddresses,
-          })),
-          sampleIPs: ips.map((ip) => ({
-            ip: ip.address,
-            status: ip.status,
-            assignedToHost: ip.machine?.hostname || ip.hostname || 'Libre',
-          })),
-        };
-      },
-    });
-
-    // 6. IT Assets, Warranties & Hardware
-    this.register({
-      name: 'getAssets',
-      description: 'Consulta el inventario de activos de hardware, componentes, estado de amortización y vencimiento de garantías',
-      requiredPermission: 'ASSET_READ',
-      parameters: {
-        type: 'object',
-        properties: {
-          query: { type: 'string', description: 'Buscar por tag de activo, nombre, modelo o serie' },
-          warrantiesExpiringWithinDays: { type: 'number', description: 'Días para vencimiento de garantía (e.g. 30, 90)' },
-          limit: { type: 'number', default: 20 },
-        },
-      },
-      execute: async (params, { prisma }) => {
-        const where: any = {};
-        if (params.query) {
-          where.OR = [
-            { assetTag: { contains: params.query, mode: 'insensitive' } },
-            { name: { contains: params.query, mode: 'insensitive' } },
-            { model: { contains: params.query, mode: 'insensitive' } },
-            { serialNumber: { contains: params.query, mode: 'insensitive' } },
-          ];
-        }
-
-        if (params.warrantiesExpiringWithinDays) {
-          const targetDate = new Date(Date.now() + params.warrantiesExpiringWithinDays * 24 * 3600 * 1000);
-          where.warranty = {
-            endDate: { lte: targetDate, gte: new Date() },
-          };
-        }
-
-        const assets = await prisma.asset.findMany({
-          where,
-          take: params.limit || 20,
-          include: {
-            warranties: true,
-            supplier: { select: { name: true } },
-            machine: { select: { hostname: true } },
-            location: { select: { name: true } },
-          },
-          orderBy: { assetTag: 'asc' },
-        });
-
-        return assets.map((a: any) => ({
-          id: a.id,
-          assetTag: a.assetTag,
-          name: a.name,
-          type: a.assetType,
-          status: a.status,
-          model: a.model,
-          manufacturer: a.manufacturer,
-          serialNumber: a.serialNumber,
-          linkedHost: a.machine?.hostname,
-          location: a.location?.name,
-          supplier: a.supplier?.name,
-          warranty: a.warranties?.[0] ? {
-            provider: a.warranties[0].provider,
-            endDate: a.warranties[0].endDate,
-            contractNumber: a.warranties[0].contractNumber,
-          } : 'Sin garantía registrada',
+        return networks.map((n) => ({
+          name: n.name,
+          cidr: n.cidr,
+          vlan: n.vlan ? `${n.vlan.name} (VLAN ${n.vlan.vlanId})` : 'Sin VLAN',
+          dhcp: n.dhcpEnabled,
+          ipsRegistered: n._count.ipAddresses,
         }));
       },
-    });
+    };
+    this.register(searchIPAMTool);
+    this.register({ ...searchIPAMTool, name: 'searchIPAM' });
 
-    // 7. Software Licenses
-    this.register({
-      name: 'getLicenses',
-      description: 'Consulta licencias de software, fabricantes, asientos utilizados, libres y sobreasignaciones (las claves privadas se mantienen ocultas)',
-      requiredPermission: 'LICENSE_READ',
-      parameters: {
-        type: 'object',
-        properties: {
-          vendorOrProduct: { type: 'string', description: 'Nombre de proveedor o producto de software' },
-          limit: { type: 'number', default: 20 },
-        },
-      },
-      execute: async (params, { prisma }) => {
-        const where: any = {};
-        if (params.vendorOrProduct) {
-          where.OR = [
-            { vendor: { contains: params.vendorOrProduct, mode: 'insensitive' } },
-            { product: { contains: params.vendorOrProduct, mode: 'insensitive' } },
-            { name: { contains: params.vendorOrProduct, mode: 'insensitive' } },
-          ];
-        }
-
-        const licenses = await prisma.license.findMany({
-          where,
-          take: params.limit || 20,
-          include: { _count: { select: { assignments: true } } },
-        });
-
-        return licenses.map((l: any) => ({
-          id: l.id,
-          name: l.name,
-          vendor: l.vendor,
-          product: l.product,
-          type: l.licenseType,
-          totalSeats: l.seats,
-          usedSeats: l._count?.assignments ?? l.usedSeats ?? 0,
-          availableSeats: Math.max(0, l.seats - (l._count?.assignments ?? l.usedSeats ?? 0)),
-          isOverAssigned: (l._count?.assignments ?? l.usedSeats ?? 0) > l.seats,
-          expiresAt: l.expirationDate,
-        }));
-      },
-    });
-
-    // 8. Tickets & SLAs
-    this.register({
-      name: 'getTickets',
-      description: 'Consulta tickets de soporte, estado, prioridad, cumplimiento de SLA y técnicos asignados',
-      requiredPermission: 'TICKET_READ',
-      parameters: {
-        type: 'object',
-        properties: {
-          status: { type: 'string', enum: ['OPEN', 'IN_PROGRESS', 'PENDING', 'WAITING', 'RESOLVED', 'CLOSED', 'CANCELLED'] },
-          priority: { type: 'string', enum: ['CRITICAL', 'HIGH', 'NORMAL', 'LOW'] },
-          slaStatus: { type: 'string', enum: ['ON_TRACK', 'WARNING', 'BREACHED', 'EXEMPT'] },
-          limit: { type: 'number', default: 20 },
-        },
-      },
-      execute: async (params, { prisma }) => {
-        const where: any = {};
-        if (params.status) where.status = params.status;
-        if (params.priority) where.priority = params.priority;
-        if (params.slaStatus) where.slaStatus = params.slaStatus;
-
-        const tickets = await prisma.ticket.findMany({
-          where,
-          take: params.limit || 20,
-          include: {
-            assignee: { select: { name: true, username: true } },
-            machine: { select: { hostname: true } },
-            asset: { select: { assetTag: true } },
-            sla: { select: { name: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-        });
-
-        return tickets.map((t: any) => ({
-          id: t.id,
-          code: t.ticketNumber,
-          title: t.title,
-          type: t.type,
-          status: t.status,
-          priority: t.priority,
-          slaStatus: t.slaStatus,
-          slaName: t.sla?.name,
-          assignee: t.assignee?.name || 'Sin asignar',
-          linkedHost: t.machine?.hostname,
-          linkedAsset: t.asset?.assetTag,
-          createdAt: t.createdAt,
-          dueDate: t.dueDate,
-        }));
-      },
-    });
-
-    // 9. Maintenances & Windows
-    this.register({
-      name: 'getMaintenances',
-      description: 'Consulta ventanas de mantenimiento preventivo y correctivo programadas en infraestructura',
-      requiredPermission: 'MAINTENANCE_READ',
-      parameters: {
-        type: 'object',
-        properties: {
-          type: { type: 'string', enum: ['PREVENTIVE', 'CORRECTIVE', 'SCHEDULED', 'EMERGENCY'] },
-          status: { type: 'string', enum: ['PLANNED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] },
-          limit: { type: 'number', default: 20 },
-        },
-      },
-      execute: async (params, { prisma }) => {
-        const where: any = {};
-        if (params.type) where.type = params.type;
-        if (params.status) where.status = params.status;
-
-        const maintenances = await prisma.maintenance.findMany({
-          where,
-          take: params.limit || 20,
-          include: {
-            machine: { select: { hostname: true } },
-            assignee: { select: { name: true } },
-            checklists: true,
-          },
-          orderBy: { scheduledStart: 'asc' },
-        });
-
-        return maintenances.map((m: any) => ({
-          id: m.id,
-          title: m.title,
-          type: m.type,
-          status: m.status,
-          start: m.scheduledStart,
-          end: m.scheduledEnd,
-          host: m.machine?.hostname,
-          suppressAlerts: m.suppressAlerts,
-          assignee: m.assignee?.name || 'Sin asignar',
-          checklistTotal: m.checklists?.length || 0,
-          checklistCompleted: m.checklists?.filter((c: any) => c.isCompleted)?.length || 0,
-        }));
-      },
-    });
-
-    // 10. Change Management (RFC)
-    this.register({
-      name: 'getChanges',
-      description: 'Consulta solicitudes de cambio (RFC ITIL), evaluaciones de riesgo, impacto y aprobaciones',
-      requiredPermission: 'CHANGE_READ',
-      parameters: {
-        type: 'object',
-        properties: {
-          status: { type: 'string', enum: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'ROLLED_BACK'] },
-          limit: { type: 'number', default: 20 },
-        },
-      },
-      execute: async (params, { prisma }) => {
-        const where: any = {};
-        if (params.status) where.status = params.status;
-
-        const changes = await prisma.change.findMany({
-          where,
-          take: params.limit || 20,
-          include: {
-            requester: { select: { name: true } },
-            machine: { select: { hostname: true } },
-            approvals: true,
-          },
-          orderBy: { plannedStart: 'asc' },
-        });
-
-        return changes.map((c) => ({
-          id: c.id,
-          code: c.changeNumber,
-          title: c.title,
-          risk: c.risk,
-          impact: c.impact,
-          status: c.status,
-          start: c.plannedStart,
-          end: c.plannedEnd,
-          requester: c.requester?.name || 'Admin',
-          host: c.machine?.hostname,
-          hasRollbackPlan: !!c.rollbackPlan,
-          approvalsCount: c.approvals.length,
-        }));
-      },
-    });
-
-    // 11. Network Topology
-    this.register({
-      name: 'getTopology',
+    // ----------------------------------------------------
+    // 13. Network Topology (get_topology / getTopology)
+    // ----------------------------------------------------
+    const getTopologyTool: ToolDefinition = {
+      name: 'get_topology',
       description: 'Consulta diagramas de topología de red y conexiones entre equipos',
       requiredPermission: 'TOPOLOGY_READ',
-      parameters: {
-        type: 'object',
-        properties: {
-          topologyIdOrName: { type: 'string', description: 'ID o nombre de la topología' },
-        },
-      },
-      execute: async (params, { prisma }) => {
-        const where: any = {};
-        if (params.topologyIdOrName) {
-          where.OR = [
-            { id: params.topologyIdOrName },
-            { name: { contains: params.topologyIdOrName, mode: 'insensitive' } },
-          ];
-        }
-
+      parameters: { type: 'object', properties: {} },
+      execute: async (_, { prisma }) => {
         const topologies = await prisma.topology.findMany({
-          where,
           take: 3,
           include: {
             nodes: { include: { machine: { select: { hostname: true, primaryIp: true, status: true } } } },
@@ -637,54 +652,8 @@ export class AIToolRegistry {
           })),
         }));
       },
-    });
-
-    // 12. Dashboard & Platform Overview Stats
-    this.register({
-      name: 'getDashboardStats',
-      description: 'Obtiene un resumen global en tiempo real de toda la infraestructura (máquinas por estado, incidentes, tickets y capacidad)',
-      requiredPermission: 'SETTINGS_READ',
-      parameters: { type: 'object', properties: {} },
-      execute: async (_, { prisma }) => {
-        const [
-          totalMachines,
-          onlineMachines,
-          warningMachines,
-          offlineMachines,
-          activeIncidents,
-          openTickets,
-          criticalTickets,
-          pendingChanges,
-          upcomingMaintenances,
-        ] = await Promise.all([
-          prisma.machine.count(),
-          prisma.machine.count({ where: { status: 'ONLINE' } }),
-          prisma.machine.count({ where: { status: 'WARNING' } }),
-          prisma.machine.count({ where: { status: 'OFFLINE' } }),
-          prisma.metricAnomaly.count({ where: { resolvedAt: null } }),
-          prisma.ticket.count({ where: { status: { in: ['OPEN', 'IN_PROGRESS', 'PENDING', 'WAITING'] } } }),
-          prisma.ticket.count({ where: { priority: 'CRITICAL', status: { notIn: ['RESOLVED', 'CLOSED', 'CANCELLED'] } } }),
-          prisma.change.count({ where: { status: 'PENDING_APPROVAL' } }),
-          prisma.maintenance.count({ where: { status: { in: ['PLANNED', 'SCHEDULED'] } } }),
-        ]);
-
-        return {
-          infrastructure: {
-            totalHosts: totalMachines,
-            online: onlineMachines,
-            warning: warningMachines,
-            offline: offlineMachines,
-            healthRate: totalMachines > 0 ? `${Math.round((onlineMachines / totalMachines) * 100)}%` : '100%',
-          },
-          operations: {
-            activeIncidents,
-            openTickets,
-            criticalTickets,
-            pendingChanges,
-            upcomingMaintenances,
-          },
-        };
-      },
-    });
+    };
+    this.register(getTopologyTool);
+    this.register({ ...getTopologyTool, name: 'getTopology' });
   }
 }

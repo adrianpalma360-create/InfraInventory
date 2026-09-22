@@ -1,4 +1,5 @@
 import { AIToolRegistry } from './ai.tools.js';
+import { buildProtectedPrompt } from './ai.sanitizer.js';
 
 export interface GroundedAIResponse {
   content: string;
@@ -21,12 +22,11 @@ export class AIEngine {
     userId?: string
   ): Promise<GroundedAIResponse> {
     const startTime = Date.now();
-    const toolsUsed: string[] = [];
 
     // If AI is disabled in settings, return clear message
     if (!config.isEnabled) {
       return {
-        content: '⚠️ **InfraInventory AI está actualmente desactivado.** Un administrador puede habilitarlo desde `Ajustes > InfraInventory AI`.',
+        content: '⚠️ **InfraAI está actualmente desactivado.** Un administrador puede habilitarlo desde `Configuración > Inteligencia Artificial`.',
         findings: [],
         evidence: [],
         recommendations: ['Contactar al administrador para habilitar el servicio de IA.'],
@@ -36,23 +36,45 @@ export class AIEngine {
       };
     }
 
-    // Try External/Local Model (Ollama / OpenAI-Compatible) if accessible
-    let providerResponse: string | null = null;
+    // 1. Determine and execute tools based on intent and RBAC
+    const { toolsUsed, retrievedData, defaultReasoning } = await this.executeGroundedReasoning(userMessage, userRole, userId);
+
+    // 2. If an LLM provider (Ollama / OpenAI) is configured, synthesize via LLM with strict grounding
+    let finalContent = defaultReasoning.content;
+
     if (config.provider === 'ollama' || config.provider === 'openai') {
       try {
-        providerResponse = await this.callLLMProvider(userMessage, conversationHistory, config);
+        const systemPrompt = `Eres InfraAI, el Asistente Inteligente de Operaciones IT de InfraInventory.
+REGLAS ABSOLUTAS:
+1. Eres un asistente estrictamente READ-ONLY. No puedes modificar ni ejecutar acciones sobre la infraestructura.
+2. Responde ÚNICAMENTE utilizando los datos reales proporcionados en la sección <DATOS_INFRAESTRUCTURA>.
+3. Si la información solicitada NO está presente en los datos, responde taxativamente: "No dispongo de ese dato en InfraInventory."
+4. NO inventes ni asumas causalidades sin evidencia. Distingue entre datos observados e interpretación técnica.
+5. NO incluyas ninguna versión de la aplicación en tus respuestas.
+6. Presenta la información en tablas o listas Markdown limpias y estructuradas cuando corresponda.
+7. Cita al final las fuentes consultadas (ej. "Fuentes consultadas: Monitoring, Alerts, Inventory").`;
+
+        const promptWithData = buildProtectedPrompt(systemPrompt, retrievedData, userMessage);
+        const llmAnswer = await this.callLLMProvider(promptWithData, conversationHistory, config);
+
+        if (llmAnswer && llmAnswer.trim().length > 0) {
+          finalContent = llmAnswer.trim();
+        }
       } catch (err) {
-        // Fallback gracefully to deterministic rule-based grounding engine
-        providerResponse = null;
+        // Fallback transparently to deterministic grounded result
+        console.warn('[InfraAI] LLM provider call fallback:', err);
       }
     }
 
-    // Grounded Reasoning Engine (always uses real data from InfraInventory DB via Tools)
-    const groundedResult = await this.executeGroundedReasoning(userMessage, userRole, userId);
     const durationMs = Date.now() - startTime;
 
     return {
-      ...groundedResult,
+      content: finalContent,
+      findings: defaultReasoning.findings,
+      evidence: defaultReasoning.evidence,
+      recommendations: defaultReasoning.recommendations,
+      relatedEntities: defaultReasoning.relatedEntities,
+      toolsUsed,
       durationMs,
     };
   }
@@ -63,7 +85,7 @@ export class AIEngine {
     config: { provider: string; baseUrl: string; model: string; apiKey?: string | null }
   ): Promise<string | null> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
     try {
       if (config.provider === 'ollama') {
@@ -79,7 +101,7 @@ export class AIEngine {
           signal: controller.signal,
         });
         if (!res.ok) return null;
-        const data = await res.json();
+        const data: any = await res.json();
         return data.response || null;
       } else if (config.provider === 'openai') {
         const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
@@ -90,13 +112,17 @@ export class AIEngine {
             ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
           },
           body: JSON.stringify({
-            model: config.model,
-            messages: [...history.slice(-4), { role: 'user', content: prompt }],
+            model: config.model || 'gpt-4o-mini',
+            messages: [
+              ...history.slice(-4).map((h) => ({ role: h.role, content: h.content })),
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.1,
           }),
           signal: controller.signal,
         });
         if (!res.ok) return null;
-        const data = await res.json();
+        const data: any = await res.json();
         return data.choices?.[0]?.message?.content || null;
       }
     } catch {
@@ -107,325 +133,214 @@ export class AIEngine {
     return null;
   }
 
-  private async executeGroundedReasoning(prompt: string, userRole: any, userId?: string): Promise<Omit<GroundedAIResponse, 'durationMs'>> {
+  private async executeGroundedReasoning(
+    prompt: string,
+    userRole: any,
+    userId?: string
+  ): Promise<{
+    toolsUsed: string[];
+    retrievedData: any;
+    defaultReasoning: Omit<GroundedAIResponse, 'durationMs' | 'toolsUsed'>;
+  }> {
     const q = prompt.toLowerCase().trim();
     const toolsUsed: string[] = [];
     const findings: GroundedAIResponse['findings'] = [];
     const evidence: GroundedAIResponse['evidence'] = [];
     const recommendations: string[] = [];
     const relatedEntities: GroundedAIResponse['relatedEntities'] = [];
+    let retrievedData: any = {};
+    let content = '';
 
-    // Case 1: Overview / Infrastructure Status
-    if (
-      q.includes('que esta pasando') ||
-      q.includes('qué está pasando') ||
-      q.includes('resumen') ||
-      q.includes('estado general') ||
-      q.includes('informe') ||
-      q.includes('overview')
-    ) {
-      toolsUsed.push('getDashboardStats', 'getIncidents', 'getTickets');
-      const statsRes = await this.toolRegistry.executeTool('getDashboardStats', {}, userRole, userId);
-      const incidentsRes = await this.toolRegistry.executeTool('getIncidents', { onlyActive: true, limit: 5 }, userRole, userId);
-      const ticketsRes = await this.toolRegistry.executeTool('getTickets', { status: 'OPEN', limit: 5 }, userRole, userId);
+    // 1. Offline Hosts ("¿Qué servidores están offline / caídos?")
+    if (q.includes('offline') || q.includes('caid') || q.includes('caíd') || q.includes('inaccesible') || q.includes('apagad')) {
+      toolsUsed.push('get_offline_devices', 'get_active_alerts');
+      const offlineRes = await this.toolRegistry.executeTool('get_offline_devices', {}, userRole, userId);
+      const alertsRes = await this.toolRegistry.executeTool('get_active_alerts', { severity: 'CRITICAL', limit: 5 }, userRole, userId);
 
-      const stats = statsRes.data || {};
-      const activeIncidents = incidentsRes.data || [];
-      const openTickets = ticketsRes.data || [];
+      const offlineHosts = offlineRes.data || [];
+      const criticalAlerts = alertsRes.data || [];
+      retrievedData = { offlineHosts, criticalAlerts };
 
-      findings.push(
-        { label: 'Servidores Totales', value: `${stats.infrastructure?.totalHosts || 0}`, severity: 'INFO' },
-        { label: 'Servidores Online', value: `${stats.infrastructure?.online || 0} (${stats.infrastructure?.healthRate || '100%'})`, severity: 'HEALTHY' },
-        { label: 'Servidores con Warning/Error', value: `${(stats.infrastructure?.warning || 0) + (stats.infrastructure?.offline || 0)}`, severity: stats.infrastructure?.warning > 0 ? 'WARNING' : 'HEALTHY' },
-        { label: 'Incidentes Activos', value: `${stats.operations?.activeIncidents || 0}`, severity: stats.operations?.activeIncidents > 0 ? 'WARNING' : 'HEALTHY' },
-        { label: 'Tickets Abiertos', value: `${stats.operations?.openTickets || 0} (${stats.operations?.criticalTickets || 0} críticos)`, severity: stats.operations?.criticalTickets > 0 ? 'CRITICAL' : 'INFO' }
-      );
+      if (offlineHosts.length === 0) {
+        content = `### 🟢 Estado de Disponibilidad de Servidores\n\nActualmente **todos los servidores e infraestructura monitorizada se encuentran ONLINE** y respondiendo con normalidad.\n\n*Fuentes consultadas: Monitoring, Inventory*`;
+        findings.push({ label: 'Servidores Offline', value: '0', severity: 'HEALTHY' });
+      } else {
+        content = `### 🔴 Dispositivos Offline Detectados (${offlineHosts.length})\n\n`;
+        content += `| Dispositivo | IP Principal | Grupo | Ubicación |\n`;
+        content += `| :--- | :--- | :--- | :--- |\n`;
+        for (const host of offlineHosts) {
+          content += `| **${host.hostname}** | \`${host.primaryIp || 'N/A'}\` | ${host.group || 'Sin grupo'} | ${host.location || 'N/A'} |\n`;
+          relatedEntities.push({ type: 'machine', id: host.id, label: host.hostname });
+        }
+        content += `\n*Fuentes consultadas: Monitoring, Inventory*\n`;
 
-      evidence.push({
-        source: 'Telemetría & NOC Health Monitor',
-        detail: `Base de datos InfraInventory en tiempo real (${new Date().toLocaleTimeString()})`,
-        link: '/monitoring',
-      });
+        findings.push({ label: 'Servidores Caídos', value: `${offlineHosts.length}`, severity: 'CRITICAL' });
+        recommendations.push(`Verificar conectividad de red y alimentación eléctrica en los ${offlineHosts.length} hosts caídos.`);
+      }
 
-      if (activeIncidents.length > 0) {
-        recommendations.push(`Investigar ${activeIncidents.length} anomalía(s) activa(s) en monitorización para evitar degradación de SLA.`);
-        for (const inc of activeIncidents.slice(0, 3)) {
-          relatedEntities.push({ type: 'incident', id: inc.id, label: `Incidente ${inc.metricType} en ${inc.machine}` });
+      evidence.push({ source: 'InfraInventory Monitoring', detail: 'Estado en tiempo real de hosts', link: '/monitoring' });
+      return { toolsUsed, retrievedData, defaultReasoning: { content, findings, evidence, recommendations, relatedEntities } };
+    }
+
+    // 2. Critical & Active Alerts ("¿Qué alertas críticas hay?")
+    if (q.includes('alerta') || q.includes('anomalia') || q.includes('anomalía') || q.includes('incidente') || q.includes('incidentes')) {
+      toolsUsed.push('get_active_alerts', 'get_inventory_summary');
+      const alertsRes = await this.toolRegistry.executeTool('get_active_alerts', { onlyUnresolved: true, limit: 15 }, userRole, userId);
+      const summaryRes = await this.toolRegistry.executeTool('get_inventory_summary', {}, userRole, userId);
+
+      const alerts = alertsRes.data || [];
+      const summary = summaryRes.data || {};
+      retrievedData = { alerts, summary };
+
+      if (alerts.length === 0) {
+        content = `### 🟢 Alertas e Incidencias del NOC\n\nNo existen anomalías ni alertas críticas activas en este momento. La infraestructura opera dentro de los umbrales normales.\n\n*Fuentes consultadas: Alerts, NOC Telemetry*`;
+        findings.push({ label: 'Alertas Activas', value: '0', severity: 'HEALTHY' });
+      } else {
+        const criticalCount = alerts.filter((a: any) => a.severity === 'CRITICAL').length;
+        content = `### 🚨 Alertas Activas en el NOC (${alerts.length})\n\n`;
+        content += `| Criticidad | Host | IP | Tipo Métrica | Mensaje / Detalle |\n`;
+        content += `| :--- | :--- | :--- | :--- | :--- |\n`;
+        for (const a of alerts) {
+          const badge = a.severity === 'CRITICAL' ? '🔴 CRITICAL' : '🟠 WARNING';
+          content += `| ${badge} | **${a.machine || 'General'}** | \`${a.ip || '-'}\` | \`${a.metricType}\` | ${a.message} |\n`;
+          if (a.machine) relatedEntities.push({ type: 'incident', id: a.id, label: `${a.machine} - ${a.metricType}` });
+        }
+        content += `\n*Fuentes consultadas: Alerts, NOC Telemetry*\n`;
+
+        findings.push({ label: 'Alertas Críticas', value: `${criticalCount}`, severity: criticalCount > 0 ? 'CRITICAL' : 'WARNING' });
+        recommendations.push(`Priorizar la resolución de las ${criticalCount} alertas de nivel CRITICAL.`);
+      }
+
+      evidence.push({ source: 'InfraInventory Alerts Engine', detail: 'Registro activo de incidencias NOC', link: '/alerts' });
+      return { toolsUsed, retrievedData, defaultReasoning: { content, findings, evidence, recommendations, relatedEntities } };
+    }
+
+    // 3. Backups Status ("¿Qué backups han fallado / cómo están los backups?")
+    if (q.includes('backup') || q.includes('copia de seguridad') || q.includes('restauraci')) {
+      toolsUsed.push('get_backup_status');
+      const backupsRes = await this.toolRegistry.executeTool('get_backup_status', { limit: 10 }, userRole, userId);
+      const backups = backupsRes.data || [];
+      retrievedData = { backups };
+
+      if (backups.length === 0) {
+        content = `### 💾 Copias de Seguridad\n\nNo se han encontrado copias de seguridad registradas en el sistema.\n\n*Fuentes consultadas: Backups Engine*`;
+      } else {
+        const failed = backups.filter((b: any) => b.status === 'FAILED');
+        content = `### 💾 Estado de Copias de Seguridad (Últimos ${backups.length})\n\n`;
+        content += `| Backup | Tipo | Estado | Tamaño | Registros | Fecha |\n`;
+        content += `| :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+        for (const b of backups) {
+          const statusBadge = b.status === 'COMPLETED' ? '🟢 OK' : b.status === 'FAILED' ? '🔴 FALLIDO' : '🟡 ' + b.status;
+          content += `| **${b.name}** | \`${b.type}\` | ${statusBadge} | ${b.sizeFormatted || '-'} | ${b.recordsCount} regs | ${new Date(b.createdAt).toLocaleString()} |\n`;
+        }
+        if (failed.length > 0) {
+          content += `\n⚠️ **Atención:** Se detectaron ${failed.length} copias con fallo.\n`;
+          recommendations.push(`Revisar los detalles de error de los backups fallidos en la sección de Copias de Seguridad.`);
+        }
+        content += `\n*Fuentes consultadas: Backups Engine*\n`;
+      }
+
+      evidence.push({ source: 'InfraInventory Backup Engine', detail: 'Catálogo de backups e integridad', link: '/backups' });
+      return { toolsUsed, retrievedData, defaultReasoning: { content, findings, evidence, recommendations, relatedEntities } };
+    }
+
+    // 4. Discovery & Network Changes ("¿Qué cambió en la red / nuevos dispositivos?")
+    if (q.includes('discovery') || q.includes('descubri') || q.includes('cambio en la red') || q.includes('nuevo dispositivo')) {
+      toolsUsed.push('get_discovery_results');
+      const discoveryRes = await this.toolRegistry.executeTool('get_discovery_results', { limit: 5 }, userRole, userId);
+      const scans = discoveryRes.data || [];
+      retrievedData = { scans };
+
+      content = `### 🔍 Resultados de Descubrimiento de Red (Discovery)\n\n`;
+      if (scans.length === 0) {
+        content += `No hay registros de escaneos de red recientes.\n`;
+      } else {
+        const latest = scans[0];
+        content += `Último escaneo ejecutado sobre subred **${latest.networkCidr}** (${new Date(latest.startedAt).toLocaleString()}):\n\n`;
+        content += `- 📡 **Hosts Activos Detectados**: ${latest.activeHosts}\n`;
+        content += `- 🆕 **Nuevos Dispositivos**: ${latest.newDevicesCount}\n`;
+        content += `- 🔄 **Cambios de Topología / Puertos**: ${latest.changedDevicesCount}\n`;
+        content += `- ⚠️ **Equipos Desconectados**: ${latest.missingDevicesCount}\n\n`;
+
+        if (latest.recentChanges?.length > 0) {
+          content += `#### Cambios Detectados Recientes:\n`;
+          for (const c of latest.recentChanges.slice(0, 5)) {
+            content += `- \`${c.type}\` en **${c.hostname || c.ip}**: ${c.details}\n`;
+          }
         }
       }
+      content += `\n*Fuentes consultadas: Discovery Engine*\n`;
 
-      if (stats.operations?.criticalTickets > 0) {
-        recommendations.push('Revisar de forma prioritaria los tickets críticos en el Helpdesk operativo.');
-      }
-
-      let content = `### 📋 Resumen del Estado de la Infraestructura\n\n`;
-      content += `InfraInventory está monitorizando activamente **${stats.infrastructure?.totalHosts || 0} hosts** con una tasa de disponibilidad global del **${stats.infrastructure?.healthRate || '100%'}**.\n\n`;
-      content += `- 🟢 **Hosts Operativos**: ${stats.infrastructure?.online || 0}\n`;
-      content += `- 🟡 **Hosts en Alerta / Warning**: ${stats.infrastructure?.warning || 0}\n`;
-      content += `- 🔴 **Hosts Caídos / Offline**: ${stats.infrastructure?.offline || 0}\n`;
-      content += `- ⚠️ **Incidentes de Telemetría Activos**: ${stats.operations?.activeIncidents || 0}\n`;
-      content += `- 🎫 **Tickets de Soporte Abiertos**: ${stats.operations?.openTickets || 0}\n\n`;
-
-      if (activeIncidents.length > 0) {
-        content += `#### 🚨 Incidentes Críticos Recientes:\n`;
-        activeIncidents.forEach((i: any) => {
-          content += `- **${i.machine}** (${i.ip || 'N/A'}): \`${i.metricType}\` — ${i.message} (Detectado: ${new Date(i.detectedAt).toLocaleTimeString()})\n`;
-        });
-      }
-
-      return { content, findings, evidence, recommendations, relatedEntities, toolsUsed };
+      evidence.push({ source: 'InfraInventory Discovery', detail: 'Escaneos y detección de diffs de red', link: '/discovery' });
+      return { toolsUsed, retrievedData, defaultReasoning: { content, findings, evidence, recommendations, relatedEntities } };
     }
 
-    // Case 2: Degraded / Problematic Servers ("¿Qué servidores tienen problemas?")
-    if (
-      q.includes('problema') ||
-      q.includes('fallando') ||
-      q.includes('degradad') ||
-      q.includes('warning') ||
-      q.includes('caid') ||
-      q.includes('caíd') ||
-      q.includes('offline') ||
-      q.includes('rendimiento')
-    ) {
-      toolsUsed.push('searchMachines', 'getIncidents');
-      const machinesRes = await this.toolRegistry.executeTool('searchMachines', { status: 'WARNING', limit: 10 }, userRole, userId);
-      const offlineRes = await this.toolRegistry.executeTool('searchMachines', { status: 'OFFLINE', limit: 10 }, userRole, userId);
-      const incidentsRes = await this.toolRegistry.executeTool('getIncidents', { onlyActive: true, limit: 10 }, userRole, userId);
+    // 5. Recent Activity / Audit ("¿Qué cambió en las últimas 24 horas?")
+    if (q.includes('24 hora') || q.includes('hoy') || q.includes('actividad') || q.includes('auditor') || q.includes('cambi')) {
+      toolsUsed.push('get_recent_activity');
+      const activityRes = await this.toolRegistry.executeTool('get_recent_activity', { limit: 15 }, userRole, userId);
+      const activities = activityRes.data || [];
+      retrievedData = { activities };
 
-      const degraded = [...(machinesRes.data || []), ...(offlineRes.data || [])];
-      const incidents = incidentsRes.data || [];
-
-      if (degraded.length === 0 && incidents.length === 0) {
-        return {
-          content: '✅ **No se detectaron servidores con anomalías graves en este momento.** Todos los hosts monitorizados se encuentran en estado `ONLINE` y saludables.',
-          findings: [{ label: 'Estado General', value: 'Saludable (0 problemas activos)', severity: 'HEALTHY' }],
-          evidence: [{ source: 'Health State Monitor', detail: 'Sondeo telemétrico continuo' }],
-          recommendations: ['Mantener la periodicidad regular de copias de seguridad y revisiones preventivas.'],
-          relatedEntities: [],
-          toolsUsed,
-        };
-      }
-
-      degraded.forEach((m) => {
-        findings.push({
-          label: m.hostname,
-          value: `Estado: ${m.status} | IP: ${m.primaryIp || 'N/A'} | Grupo: ${m.group || 'Sin grupo'}`,
-          severity: m.status === 'OFFLINE' ? 'CRITICAL' : 'WARNING',
-        });
-        evidence.push({
-          source: `Monitoring → Host ${m.hostname}`,
-          detail: `Estado de salud ${m.status}`,
-          link: `/machines`,
-        });
-        relatedEntities.push({ type: 'machine', id: m.id, label: m.hostname });
-      });
-
-      let content = `### ⚠️ Servidores con Problemas Detectados\n\nSe han identificado **${degraded.length} host(s)** con estado de alerta o desconexión:\n\n`;
-      degraded.forEach((m) => {
-        content += `- **${m.hostname}** (\`${m.primaryIp || 'Sin IP'}\`): Estado **${m.status}** (SO: ${m.os || 'N/A'}, Grupo: ${m.group || 'General'})\n`;
-      });
-
-      if (incidents.length > 0) {
-        content += `\n#### 📈 Incidentes de Telemetría Asociados:\n`;
-        incidents.forEach((i: any) => {
-          content += `- **${i.machine}**: ${i.message} (Valor: \`${i.currentValue ?? 'N/A'}\` vs Umbral: \`${i.threshold ?? 'N/A'}\`)\n`;
-        });
-      }
-
-      recommendations.push('Verificar conectividad de red y carga de CPU/RAM en los nodos en estado WARNING.');
-      recommendations.push('Revisar si existen ventanas de mantenimiento planificadas que justifiquen la degradación.');
-
-      return { content, findings, evidence, recommendations, relatedEntities, toolsUsed };
-    }
-
-    // Case 3: Comparison between servers ("Compara SRV01 y SRV02")
-    if (q.includes('compara') || q.includes('comparar') || q.includes('diferencia entre')) {
-      toolsUsed.push('searchMachines', 'getMachineMetrics');
-      const allMachines = await this.toolRegistry.executeTool('searchMachines', { limit: 10 }, userRole, userId);
-      const list = allMachines.data || [];
-
-      // Extract referenced hostnames or pick top 2
-      const matched = list.filter((m: any) => q.includes(m.hostname.toLowerCase()));
-      const targets = matched.length >= 2 ? matched.slice(0, 2) : list.slice(0, 2);
-
-      if (targets.length < 2) {
-        return {
-          content: 'No tengo suficiente información de máquinas en InfraInventory para realizar una comparación.',
-          findings: [],
-          evidence: [],
-          recommendations: [],
-          relatedEntities: [],
-          toolsUsed,
-        };
-      }
-
-      const m1Metrics = await this.toolRegistry.executeTool('getMachineMetrics', { hostnameOrId: targets[0].id }, userRole, userId);
-      const m2Metrics = await this.toolRegistry.executeTool('getMachineMetrics', { hostnameOrId: targets[1].id }, userRole, userId);
-
-      const h1 = targets[0].hostname;
-      const h2 = targets[1].hostname;
-
-      relatedEntities.push({ type: 'machine', id: targets[0].id, label: h1 });
-      relatedEntities.push({ type: 'machine', id: targets[1].id, label: h2 });
-
-      findings.push(
-        { label: `${h1} - Estado`, value: `${targets[0].status} (CPU: ${m1Metrics.data?.latest?.cpu ?? 'N/A'}%)`, severity: 'INFO' },
-        { label: `${h2} - Estado`, value: `${targets[1].status} (CPU: ${m2Metrics.data?.latest?.cpu ?? 'N/A'}%)`, severity: 'INFO' }
-      );
-
-      evidence.push(
-        { source: `Métricas de ${h1}`, detail: `Muestras telemétricas: ${m1Metrics.data?.samplesCount || 0}` },
-        { source: `Métricas de ${h2}`, detail: `Muestras telemétricas: ${m2Metrics.data?.samplesCount || 0}` }
-      );
-
-      let content = `### ⚖️ Comparativa de Rendimiento Técnico\n\n`;
-      content += `| Parámetro | **${h1}** | **${h2}** |\n`;
-      content += `|---|---|---|\n`;
-      content += `| **Estado NOC** | \`${targets[0].status}\` | \`${targets[1].status}\` |\n`;
-      content += `| **Dirección IP** | \`${targets[0].primaryIp || 'N/A'}\` | \`${targets[1].primaryIp || 'N/A'}\` |\n`;
-      content += `| **Sistema Operativo** | ${targets[0].os || 'N/A'} | ${targets[1].os || 'N/A'} |\n`;
-      content += `| **CPU Actual** | \`${m1Metrics.data?.latest?.cpu ?? 'N/A'}%\` | \`${m2Metrics.data?.latest?.cpu ?? 'N/A'}%\` |\n`;
-      content += `| **RAM Actual** | \`${m1Metrics.data?.latest?.ram ?? 'N/A'}%\` | \`${m2Metrics.data?.latest?.ram ?? 'N/A'}%\` |\n`;
-      content += `| **Latencia Media** | \`${m1Metrics.data?.averages?.latencyMs ?? 'N/A'} ms\` | \`${m2Metrics.data?.averages?.latencyMs ?? 'N/A'} ms\` |\n\n`;
-
-      const cpu1 = m1Metrics.data?.latest?.cpu || 0;
-      const cpu2 = m2Metrics.data?.latest?.cpu || 0;
-      if (cpu1 > cpu2) {
-        content += `**Conclusión analítica:** \`${h1}\` presenta una mayor carga de procesamiento en comparación con \`${h2}\`.\n`;
+      content = `### 📜 Actividad y Cambios Recientes en Infraestructura\n\n`;
+      if (activities.length === 0) {
+        content += `No se registran eventos de cambio recientes en el registro de auditoría.\n`;
       } else {
-        content += `**Conclusión analítica:** Ambos nodos operan dentro de sus parámetros normales de servicio.\n`;
+        content += `| Fecha & Hora | Acción | Entidad | Usuario | Detalle |\n`;
+        content += `| :--- | :--- | :--- | :--- | :--- |\n`;
+        for (const act of activities) {
+          content += `| ${new Date(act.timestamp).toLocaleTimeString()} | \`${act.action}\` | **${act.entityType}** | ${act.user || 'system'} | ${act.details} |\n`;
+        }
       }
+      content += `\n*Fuentes consultadas: ChangeLog Audit Trail*\n`;
 
-      return { content, findings, evidence, recommendations, relatedEntities, toolsUsed };
+      evidence.push({ source: 'InfraInventory Audit Logs', detail: 'Registro inmutable de cambios', link: '/changes' });
+      return { toolsUsed, retrievedData, defaultReasoning: { content, findings, evidence, recommendations, relatedEntities } };
     }
 
-    // Case 4: Hardware & Warranties ("¿Qué activos tienen garantía este mes?" / "Garantías")
-    if (q.includes('garantía') || q.includes('garantia') || q.includes('hardware') || q.includes('activo') || q.includes('asset')) {
-      toolsUsed.push('getAssets');
-      const assetsRes = await this.toolRegistry.executeTool('getAssets', { limit: 15 }, userRole, userId);
-      const assets = assetsRes.data || [];
+    // 6. Default Global Overview / General Status ("¿Cómo está la infraestructura?")
+    toolsUsed.push('get_inventory_summary', 'get_active_alerts', 'get_offline_devices');
+    const [summaryRes, activeAlertsRes, offlineRes] = await Promise.all([
+      this.toolRegistry.executeTool('get_inventory_summary', {}, userRole, userId),
+      this.toolRegistry.executeTool('get_active_alerts', { limit: 5 }, userRole, userId),
+      this.toolRegistry.executeTool('get_offline_devices', {}, userRole, userId),
+    ]);
 
-      assets.forEach((a: any) => {
-        findings.push({
-          label: `${a.assetTag} - ${a.name}`,
-          value: `Fabricante: ${a.manufacturer || 'N/A'} | Modelo: ${a.model || 'N/A'}`,
-          severity: 'INFO',
-        });
-        relatedEntities.push({ type: 'asset', id: a.id, label: `${a.assetTag} (${a.name})` });
-      });
+    const summary = summaryRes.data || {};
+    const alerts = activeAlertsRes.data || [];
+    const offline = offlineRes.data || [];
+    retrievedData = { summary, alerts, offline };
 
-      evidence.push({
-        source: 'Inventario de Activos IT & CMDB (V8)',
-        detail: `${assets.length} activos consultados`,
-        link: '/assets',
-      });
+    const total = summary.infrastructure?.totalHosts || 0;
+    const online = summary.infrastructure?.online || 0;
+    const warn = summary.infrastructure?.warning || 0;
+    const off = summary.infrastructure?.offline || 0;
+    const critAlerts = summary.alerts?.criticalAlerts || 0;
 
-      let content = `### 🖥️ Inventario de Activos IT y Cobertura de Garantías\n\nSe han consultado **${assets.length} activo(s)** en la plataforma:\n\n`;
-      assets.forEach((a: any) => {
-        const warrantyInfo = typeof a.warranty === 'object' && a.warranty ? `Garantía hasta ${new Date(a.warranty.endDate).toLocaleDateString()} (${a.warranty.provider})` : 'Sin garantía';
-        content += `- **${a.assetTag}** — ${a.name} (${a.model || 'Hardware'}): ${warrantyInfo} [Host: \`${a.linkedHost || 'No vinculado'}\`]\n`;
-      });
+    findings.push(
+      { label: 'Total Servidores', value: `${total}`, severity: 'INFO' },
+      { label: 'Disponibilidad', value: `${summary.infrastructure?.healthRate || '100%'}`, severity: 'HEALTHY' },
+      { label: 'Alertas Críticas', value: `${critAlerts}`, severity: critAlerts > 0 ? 'CRITICAL' : 'HEALTHY' }
+    );
 
-      recommendations.push('Revisar contratos de mantenimiento con fabricantes para renovaciones preventivas.');
+    content = `### 📋 Resumen Operativo de Infraestructura\n\n`;
+    content += `InfraInventory está supervisando un total de **${total} dispositivos** con una disponibilidad global de **${summary.infrastructure?.healthRate || '100%'}**.\n\n`;
+    content += `- 🟢 **Hosts Operativos (Online)**: ${online}\n`;
+    content += `- 🟡 **Hosts en Advertencia (Warning)**: ${warn}\n`;
+    content += `- 🔴 **Hosts Fuera de Línea (Offline)**: ${off}\n`;
+    content += `- 🚨 **Alertas Críticas del NOC**: ${critAlerts}\n\n`;
 
-      return { content, findings, evidence, recommendations, relatedEntities, toolsUsed };
-    }
-
-    // Case 5: Software Licenses ("¿Qué licencias vencen?" / "Licencias")
-    if (q.includes('licencia') || q.includes('software') || q.includes('seats')) {
-      toolsUsed.push('getLicenses');
-      const licRes = await this.toolRegistry.executeTool('getLicenses', {}, userRole, userId);
-      const licenses = licRes.data || [];
-
-      licenses.forEach((l: any) => {
-        findings.push({
-          label: l.name,
-          value: `Asientos: ${l.usedSeats}/${l.totalSeats} (Libres: ${l.availableSeats})`,
-          severity: l.isOverAssigned ? 'CRITICAL' : 'HEALTHY',
-        });
-      });
-
-      evidence.push({
-        source: 'Gestión de Licencias & Auditoría (V8)',
-        detail: 'Claves confidenciales protegidas y enmascaradas',
-        link: '/licenses',
-      });
-
-      let content = `### 📜 Estado del Catálogo de Licencias de Software\n\n`;
-      licenses.forEach((l: any) => {
-        content += `- **${l.name}** (${l.vendor}): \`${l.usedSeats}/${l.totalSeats} asientos\` (Disponibles: **${l.availableSeats}**) ${l.isOverAssigned ? '⚠️ **SOBREASIGNADA**' : ''}\n`;
-      });
-
-      if (licenses.some((l: any) => l.isOverAssigned)) {
-        recommendations.push('Regularizar asignación de asientos de software sobreasignados para cumplir normativas de licenciamiento.');
+    if (alerts.length > 0) {
+      content += `#### ⚠️ Incidencias Destacadas:\n`;
+      for (const a of alerts.slice(0, 3)) {
+        content += `- **${a.machine || 'General'}** (\`${a.metricType}\`): ${a.message}\n`;
       }
-
-      return { content, findings, evidence, recommendations, relatedEntities, toolsUsed };
+      content += `\n`;
     }
 
-    // Case 6: Helpdesk Tickets & SLA ("Tickets críticos", "SLA")
-    if (q.includes('ticket') || q.includes('sla') || q.includes('incidencia') || q.includes('helpdesk')) {
-      toolsUsed.push('getTickets');
-      const ticketsRes = await this.toolRegistry.executeTool('getTickets', { limit: 15 }, userRole, userId);
-      const tickets = ticketsRes.data || [];
+    content += `*Fuentes consultadas: Monitoring, Alerts, Inventory*\n`;
+    evidence.push({ source: 'InfraInventory NOC Core', detail: 'Supervisión en tiempo real', link: '/dashboard' });
 
-      tickets.forEach((t: any) => {
-        findings.push({
-          label: `${t.code}: ${t.title}`,
-          value: `Estado: ${t.status} | Prioridad: ${t.priority} | SLA: ${t.slaStatus}`,
-          severity: t.priority === 'CRITICAL' ? 'CRITICAL' : 'INFO',
-        });
-        relatedEntities.push({ type: 'ticket', id: t.id, label: `${t.code}: ${t.title}` });
-      });
-
-      evidence.push({
-        source: 'Helpdesk Operativo & Acuerdos SLA (V9)',
-        detail: `${tickets.length} tickets encontrados`,
-        link: '/operations',
-      });
-
-      let content = `### 🎫 Gestión de Tickets & SLAs Operativos\n\n`;
-      tickets.forEach((t: any) => {
-        content += `- **${t.code}** — ${t.title}: Prioridad \`${t.priority}\`, Estado \`${t.status}\`, SLA: **${t.slaStatus}** (Asignado a: *${t.assignee}*)\n`;
-      });
-
-      recommendations.push('Asignar técnicos a los tickets en estado OPEN sin asignatario para no penalizar el tiempo de primera respuesta del SLA.');
-
-      return { content, findings, evidence, recommendations, relatedEntities, toolsUsed };
-    }
-
-    // Default Case: Global Search & General Answering
-    toolsUsed.push('searchMachines', 'getDashboardStats');
-    const machinesRes = await this.toolRegistry.executeTool('searchMachines', { query: prompt, limit: 10 }, userRole, userId);
-    const machines = machinesRes.data || [];
-
-    if (machines.length > 0) {
-      machines.forEach((m: any) => {
-        findings.push({ label: m.hostname, value: `IP: ${m.primaryIp || 'N/A'}, Estado: ${m.status}`, severity: 'INFO' });
-        relatedEntities.push({ type: 'machine', id: m.id, label: m.hostname });
-      });
-
-      evidence.push({
-        source: 'Inventario Global de Infraestructura',
-        detail: `${machines.length} resultado(s) encontrado(s)`,
-        link: '/machines',
-      });
-
-      let content = `### 🔍 Resultados Encontrados en InfraInventory\n\nHe localizado **${machines.length} elemento(s)** coincidentes con tu consulta:\n\n`;
-      machines.forEach((m: any) => {
-        content += `- 🖥️ **${m.hostname}** (\`${m.primaryIp || 'Sin IP'}\`): Estado **${m.status}**, SO: ${m.os || 'N/A'}, Grupo: ${m.group || 'General'}\n`;
-      });
-
-      return { content, findings, evidence, recommendations, relatedEntities, toolsUsed };
-    }
-
-    return {
-      content: `No tengo información suficiente en InfraInventory para determinar una respuesta específica sobre tu consulta ("*${prompt}*").\n\nPuedes probar preguntándome:\n- *"¿Qué servidores están teniendo problemas de rendimiento?"*\n- *"¿Qué máquinas están caídas o en warning?"*\n- *"Compara los servidores de producción"*\n- *"¿Qué licencias o garantías están próximas a vencer?"*\n- *"Genera un informe del estado general de la infraestructura"*`,
-      findings: [],
-      evidence: [{ source: 'InfraInventory Database', detail: 'Búsqueda cruzada sin coincidencias directas' }],
-      recommendations: ['Utilizar nombres de hosts, IPs, VLANs o categorías existentes en el inventario.'],
-      relatedEntities: [],
-      toolsUsed,
-    };
+    return { toolsUsed, retrievedData, defaultReasoning: { content, findings, evidence, recommendations, relatedEntities } };
   }
 }

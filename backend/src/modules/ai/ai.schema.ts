@@ -12,7 +12,7 @@ export const directQuerySchema = z.object({
 });
 
 export const analyzeRequestSchema = z.object({
-  targetType: z.enum(['MACHINE', 'NETWORK', 'INCIDENT', 'CAPACITY', 'INFRASTRUCTURE', 'COMPARISON']),
+  targetType: z.enum(['MACHINE', 'ALERT', 'NETWORK', 'INCIDENT', 'CAPACITY', 'INFRASTRUCTURE', 'COMPARISON']),
   targetId: z.string().optional(),
   targetIds: z.array(z.string()).optional(), // For comparisons
   question: z.string().optional(),

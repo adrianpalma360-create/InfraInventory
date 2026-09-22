@@ -1,6 +1,6 @@
 {
   "name": "infrainventory",
-  "version": "14.0.0",
+  "version": "15.0.0",
   "description": "InfraInventory - Enterprise Infrastructure & NOC Platform",
   "private": true,
   "type": "module",
