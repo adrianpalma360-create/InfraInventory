@@ -18,6 +18,7 @@ import {
 } from './discovery.schema.js';
 import { logChange } from '../../utils/changelog.js';
 import { isValidCIDR } from '../../utils/validators.js';
+import { NotificationService } from '../notifications/notification.service.js';
 
 interface RemoteHostResult {
   ip: string;
@@ -561,6 +562,36 @@ export class DiscoveryService {
       action: ChangeAction.CREATE,
       details: `Escaneo avanzado de red ${scan.networkCidr} completado en ${results.durationMs ? (results.durationMs / 1000).toFixed(1) + 's' : '-'}. ${results.discoveredHosts.length} hosts activos, ${newDevicesCount} nuevos dispositivos, ${changedDevicesCount} cambios, ${missingDevicesCount} fuera de línea.`,
     });
+
+    if (newDevicesCount > 0) {
+      NotificationService.getInstance().routeEvent({
+        type: 'DISCOVERY_NEW_DEVICE',
+        severity: 'INFO',
+        title: `Nuevos dispositivos detectados en red ${scan.networkCidr}`,
+        message: `El escaneo de red ${scan.networkCidr} ha detectado ${newDevicesCount} nuevo(s) dispositivo(s).`,
+        details: {
+          scanId,
+          networkCidr: scan.networkCidr,
+          newDevicesCount,
+          activeHosts: results.discoveredHosts.length,
+        },
+      }).catch((err: any) => console.error('[DiscoveryService] Notification error:', err));
+    }
+
+    if (changedDevicesCount > 0) {
+      NotificationService.getInstance().routeEvent({
+        type: 'DISCOVERY_CHANGE',
+        severity: 'INFO',
+        title: `Cambios de infraestructura detectados en red ${scan.networkCidr}`,
+        message: `El escaneo de red ${scan.networkCidr} ha detectado ${changedDevicesCount} cambio(s) en dispositivos existentes.`,
+        details: {
+          scanId,
+          networkCidr: scan.networkCidr,
+          changedDevicesCount,
+          activeHosts: results.discoveredHosts.length,
+        },
+      }).catch((err: any) => console.error('[DiscoveryService] Notification error:', err));
+    }
   }
 
   // 3. List Scans

@@ -2210,3 +2210,74 @@ model InventoryImportLog {
   @@index([createdAt])
   @@map("inventory_import_logs")
 }
+
+// ============================================================
+// V14 - Notifications & Telegram Alerting Engine
+// ============================================================
+
+enum NotificationProviderType {
+  TELEGRAM
+  EMAIL
+  WEBHOOK
+}
+
+enum NotificationDeliveryStatus {
+  SENT
+  FAILED
+  THROTTLED
+  SKIPPED_COOLDOWN
+}
+
+model NotificationConfig {
+  id                     String    @id @default(uuid())
+  telegramEnabled        Boolean   @default(false)
+  telegramBotToken       String?   // AES-256-GCM Encrypted
+  telegramChatId         String?   // Group, supergroup, or private chat ID
+  cooldownMinutes        Int       @default(15) // Anti-spam cooldown (5, 15, 30, 60 min)
+  rateLimitPerMin        Int       @default(20)
+  
+  // Severity Filters
+  notifyCritical         Boolean   @default(true)
+  notifyWarning          Boolean   @default(true)
+  notifyInfo             Boolean   @default(false)
+
+  // Specific Event Toggles
+  notifyHostOffline      Boolean   @default(true)
+  notifyHostRecovered    Boolean   @default(true)
+  notifyServiceDown      Boolean   @default(true)
+  notifyServiceRecovered Boolean   @default(true)
+  notifyHighCpu          Boolean   @default(true)
+  notifyHighRam          Boolean   @default(true)
+  notifyHighDisk         Boolean   @default(true)
+  notifyDiscoveryNew     Boolean   @default(true)
+  notifyDiscoveryChange  Boolean   @default(true)
+  notifyBackupFailed     Boolean   @default(true)
+  notifyBackupCompleted  Boolean   @default(false)
+  notifyRestoreFailed    Boolean   @default(true)
+  notifyRestoreCompleted Boolean   @default(true)
+  notifyImportFailed     Boolean   @default(true)
+
+  updatedAt              DateTime  @updatedAt
+
+  @@map("notification_configs")
+}
+
+model NotificationDeliveryLog {
+  id           String                     @id @default(uuid())
+  provider     NotificationProviderType   @default(TELEGRAM)
+  eventType    String                     // HOST_OFFLINE, HOST_RECOVERED, HIGH_CPU, etc.
+  severity     String                     @default("WARNING") // CRITICAL, WARNING, INFO
+  recipient    String                     // Masked Chat ID e.g. -100****5678
+  title        String
+  summary      String
+  status       NotificationDeliveryStatus @default(SENT)
+  attempts     Int                        @default(1)
+  errorMessage String?
+  durationMs   Int                        @default(0)
+  createdAt    DateTime                   @default(now())
+
+  @@index([provider])
+  @@index([status])
+  @@index([createdAt])
+  @@map("notification_delivery_logs")
+}

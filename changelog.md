@@ -4,6 +4,28 @@ Todas las modificaciones notables de este proyecto se documentan en este archivo
 
 ---
 
+## [14.0.0] - 2026-09-22
+
+### 🔔 Sistema de Alertas y Notificaciones por Telegram
+* **Integración Nativa con Telegram Bot API:** Emisión en tiempo real de notificaciones formateadas en HTML para eventos operacionales, caídas de hosts, saturación de recursos y tareas críticas.
+* **Seguridad de Grado Bancario (AES-256-GCM):** Cifrado en reposo del Token de Bot de Telegram y enmascaramiento estricto (`********abcd` y Chat ID `12****89` / `-100****7890`), garantizando que las credenciales nunca se expongan en logs ni viajen en texto claro a la UI.
+* **Filtro Granular de Eventos:** Selector de eventos y severidad mínima (`INFO`, `WARNING`, `CRITICAL`):
+  * *Hosts e Infraestructura:* Caída de host (`HOST_OFFLINE`) y restablecimiento (`HOST_RECOVERED`) con cálculo automático de duración de la caída.
+  * *Servicios y Procesos:* Detención (`SERVICE_DOWN`) y recuperación (`SERVICE_RECOVERED`).
+  * *Telemetría y Recursos:* Saturación de CPU (`HIGH_CPU`), memoria RAM (`HIGH_RAM`), disco (`HIGH_DISK`) y alertas del NOC.
+  * *Discovery de Red:* Nuevos dispositivos detectados (`DISCOVERY_NEW_DEVICE`) y cambios en puertos/IP/MAC (`DISCOVERY_CHANGE`).
+  * *Backups y Restauraciones:* Notificaciones de finalización o fallo en copias de seguridad (`BACKUP_COMPLETED`, `BACKUP_FAILED`), restauraciones y procesos de importación.
+* **Mecanismo Anti-Spam / Cooldown & Rate Limiting:** Deduplicación inteligente de alertas en ventanas configurables (5m, 15m, 30m, 1h) con reseteo instantáneo ante recuperaciones, limitador de tasa a 20 msgs/minuto y 3 reintentos con backoff exponencial.
+* **Historial Inmutable de Notificaciones:** Tabla de registro de auditoría de envíos (`NotificationDeliveryLog`) accesible desde la interfaz web con estado, latencia y sanitización de tokens en errores.
+* **Probador de Conexión Integrado:** Botón "Enviar Mensaje de Prueba" en la pestaña de configuración para verificar la conectividad de forma inmediata.
+
+### 🧹 Limpieza Completa del Sistema de Versionado Visual
+* **Unificación Visual Estricta:** La versión de la plataforma se muestra **exclusivamente** en la sección **"Acerca de"** (`AboutPage.tsx`), eliminando badges y cadenas de versión innecesarias del Dashboard NOC, tablas de backups, modales y mensajes.
+* **Mensajes de Alerta Limpios:** Formato de notificaciones de Telegram completamente libre de cadenas o etiquetas de versión de la aplicación.
+* **Preservación del Versionado Técnico:** Sincronización exacta y automatizada de versiones para builds, Docker, GHCR, CI/CD de GitHub Actions y endpoints de introspección técnica (`GET /api/version` y `GET /api/about`).
+
+---
+
 ## [13.0.0] - 2026-09-21
 
 ### 💾 Sistema Integral de Backups de InfraInventory

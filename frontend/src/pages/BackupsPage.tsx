@@ -273,7 +273,7 @@ export const BackupsPage: React.FC = () => {
                 <th className="py-3 px-4">Tamaño</th>
                 <th className="py-3 px-4">Tipo</th>
                 <th className="py-3 px-4">Estado</th>
-                <th className="py-3 px-4">Versión</th>
+                <th className="py-3 px-4">Registros</th>
                 <th className="py-3 px-4">Creado por</th>
                 <th className="py-3 px-4 text-right">Acciones</th>
               </tr>
@@ -304,8 +304,8 @@ export const BackupsPage: React.FC = () => {
                       </div>
                       <span className="text-[10px] text-[#64748B] font-mono block truncate max-w-xs">{backup.filename}</span>
                     </td>
-                    <td className="py-3 px-4 font-mono text-[#94A3B8]">
-                      {new Date(backup.createdAt).toLocaleString('es-ES')}
+                    <td className="py-3 px-4 text-[#94A3B8] font-mono text-xs">
+                      {new Date(backup.createdAt).toLocaleString()}
                     </td>
                     <td className="py-3 px-4 font-mono font-medium text-[#F1F5F9]">
                       {backup.sizeFormatted}
@@ -316,8 +316,8 @@ export const BackupsPage: React.FC = () => {
                     <td className="py-3 px-4">
                       {getStatusBadge(backup.status)}
                     </td>
-                    <td className="py-3 px-4 font-mono text-[#94A3B8]">
-                      v{backup.appVersion}
+                    <td className="py-3 px-4 font-mono text-[#94A3B8] text-xs">
+                      {backup.recordsCount} regs / {backup.tablesCount} tablas
                     </td>
                     <td className="py-3 px-4 text-[#94A3B8]">
                       {backup.createdBy}
@@ -568,7 +568,7 @@ export const BackupsPage: React.FC = () => {
                 </div>
 
                 <div className="p-3 rounded-lg bg-[#151B23] border border-[#252D38] space-y-1 text-xs">
-                  <div className="flex justify-between"><span className="text-[#64748B]">Versión Backup:</span> <span className="font-mono text-[#F1F5F9]">v{selectedBackupForRestore.appVersion}</span></div>
+                  <div className="flex justify-between"><span className="text-[#64748B]">Tipo de Backup:</span> <span className="font-mono text-[#F1F5F9]">{selectedBackupForRestore.type}</span></div>
                   <div className="flex justify-between"><span className="text-[#64748B]">Tamaño:</span> <span className="font-mono text-[#F1F5F9]">{selectedBackupForRestore.sizeFormatted}</span></div>
                   <div className="flex justify-between"><span className="text-[#64748B]">Tablas contenidas:</span> <span className="font-mono text-[#F1F5F9]">{selectedBackupForRestore.tablesCount} tablas</span></div>
                 </div>

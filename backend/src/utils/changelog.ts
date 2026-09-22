@@ -51,7 +51,10 @@ export interface LogChangeParams {
     // V13
     | 'Backup'
     | 'InventoryExport'
-    | 'InventoryImport';
+    | 'InventoryImport'
+    // V14
+    | 'NotificationConfig'
+    | 'NotificationDeliveryLog';
   entityId: string;
   action: ChangeAction;
   details: string;

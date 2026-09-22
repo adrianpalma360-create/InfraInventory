@@ -83,6 +83,9 @@ import {
   ConflictResolution,
   ImportExecutionResult,
   InventoryImportLogItem,
+  NotificationConfigDTO,
+  UpdateNotificationConfigInput,
+  NotificationDeliveryLogItem,
 } from '../types/index.js';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -1510,3 +1513,20 @@ export const inventoryIOApi = {
     }),
   getImportHistory: () => request<InventoryImportLogItem[]>('/inventory/import/history'),
 };
+
+export const notificationApi = {
+  getTelegramConfig: () => request<NotificationConfigDTO>('/notifications/telegram'),
+  updateTelegramConfig: (data: UpdateNotificationConfigInput) =>
+    request<NotificationConfigDTO>('/notifications/telegram', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  sendTestMessage: (data?: { customMessage?: string; botToken?: string; chatId?: string }) =>
+    request<{ success: boolean; message: string; telegramMessageId?: number }>('/notifications/telegram/test', {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    }),
+  getHistory: (limit = 50) =>
+    request<NotificationDeliveryLogItem[]>(`/notifications/history?limit=${limit}`),
+};
+

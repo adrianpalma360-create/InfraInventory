@@ -178,9 +178,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <h1 className="text-xl font-extrabold tracking-tight text-[#F1F5F9] font-mono">
               INFRAINVENTORY NOC
             </h1>
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#06B6D4]/10 text-[#06B6D4] border border-[#06B6D4]/30">
-              v12.0.0
-            </span>
           </div>
           <p className="text-xs text-[#94A3B8] mt-0.5">
             Centro de Operaciones de Red y Supervisión Unificada de Infraestructura IT
@@ -262,7 +259,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div className="max-w-md">
             <h3 className="text-sm font-bold text-[#F1F5F9]">Sin infraestructura monitorizada</h3>
             <p className="text-xs text-[#94A3B8] mt-1 leading-relaxed">
-              InfraInventory 12.0.0 está listo. Comienza añadiendo tu primera máquina al inventario o ejecutando un escaneo de red en el módulo Discovery.
+              InfraInventory está listo. Comienza añadiendo tu primera máquina al inventario o ejecutando un escaneo de red en el módulo Discovery.
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">

@@ -5,6 +5,7 @@ import {
   MonitoringConfigUpdateInput,
 } from './metrics.schema.js';
 import { metricsWsHub } from './metrics.ws.js';
+import { NotificationService } from '../notifications/notification.service.js';
 
 export class MetricsService {
   constructor(private prisma: PrismaClient) {}
@@ -78,6 +79,30 @@ export class MetricsService {
             healthState: health,
           },
         });
+
+        // Trigger Notification on Host Offline / Recovered
+        const notifier = NotificationService.getInstance(this.prisma);
+        if (notifier) {
+          if (newMachineStatus === MachineStatus.OFFLINE) {
+            notifier.notify({
+              eventType: 'HOST_OFFLINE',
+              severity: 'CRITICAL',
+              entityId: machine.id,
+              hostname: machine.hostname,
+              details: 'El host no responde a sondas ICMP/TCP de monitorización',
+              timestamp: sampleTime,
+            }).catch(() => {});
+          } else if (machine.status === MachineStatus.OFFLINE && newMachineStatus === MachineStatus.ONLINE) {
+            notifier.notify({
+              eventType: 'HOST_RECOVERED',
+              severity: 'INFO',
+              entityId: machine.id,
+              hostname: machine.hostname,
+              details: 'Host de nuevo en línea y respondiendo normalmente',
+              timestamp: sampleTime,
+            }).catch(() => {});
+          }
+        }
       }
 
       // Upsert service checks
@@ -271,6 +296,32 @@ export class MetricsService {
         hostname,
       },
     });
+
+    // Dispatch Telegram Alert via Notification Engine
+    const notifier = NotificationService.getInstance(this.prisma);
+    if (notifier) {
+      const eventType =
+        metricType === 'CPU'
+          ? 'HIGH_CPU'
+          : metricType === 'RAM'
+          ? 'HIGH_RAM'
+          : metricType === 'DISK'
+          ? 'HIGH_DISK'
+          : severity === 'CRITICAL'
+          ? 'CRITICAL_ALERT'
+          : 'WARNING_ALERT';
+
+      notifier.notify({
+        eventType: eventType as any,
+        severity: severity === 'CRITICAL' ? 'CRITICAL' : 'WARNING',
+        entityId: machineId,
+        hostname,
+        metricType,
+        currentValue,
+        details: message,
+        timestamp: new Date(),
+      }).catch(() => {});
+    }
   }
 
   // 3. Historical aggregated metrics query with intelligent time bucketing

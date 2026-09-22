@@ -1,6 +1,7 @@
 import { PrismaClient, MachineType, MachineStatus, ChangeAction } from '@prisma/client';
 import { logChange } from '../../utils/changelog.js';
 import { ImportModeEnum } from './inventory-io.schema.js';
+import { NotificationService } from '../notifications/notification.service.js';
 
 export interface ParsedImportRow {
   hostname: string;
@@ -494,6 +495,25 @@ export class InventoryImportService {
       details: summary,
       user: requestedBy,
     });
+
+    if (logRecord.status === 'FAILED' || errorCount > 0) {
+      NotificationService.getInstance().routeEvent({
+        type: 'IMPORT_FAILED',
+        severity: 'WARNING',
+        title: `Incidencias en importación de inventario: ${filename}`,
+        message: summary,
+        details: {
+          filename,
+          format: input.format,
+          mode,
+          totalRecords: rows.length,
+          createdCount,
+          updatedCount,
+          errorCount,
+          requestedBy,
+        },
+      }).catch((err: any) => console.error('[InventoryImportService] Notification error:', err));
+    }
 
     return {
       importLogId: logRecord.id,

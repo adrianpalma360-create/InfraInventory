@@ -42,6 +42,7 @@ import { automationRoutes } from './modules/automation/automation.routes.js';
 import { setupRoutes } from './modules/setup/setup.routes.js';
 import { backupRoutes } from './modules/backups/backup.routes.js';
 import { inventoryIORoutes } from './modules/inventory-io/inventory-io.routes.js';
+import { notificationRoutes } from './modules/notifications/notification.routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const env = getEnv();
@@ -184,6 +185,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(setupRoutes);
       await api.register(backupRoutes);
       await api.register(inventoryIORoutes);
+      await api.register(notificationRoutes);
     },
     { prefix: '/api' }
   );

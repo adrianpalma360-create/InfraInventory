@@ -2224,3 +2224,56 @@ export interface InventoryImportLogItem {
   durationMs: number;
   createdAt: string;
 }
+
+// ----------------------------------------------------
+// Version 14: Telegram & Notifications Engine Types
+// ----------------------------------------------------
+
+export type NotificationProviderType = 'TELEGRAM' | 'EMAIL' | 'SLACK' | 'WEBHOOK';
+export type NotificationDeliveryStatus = 'SUCCESS' | 'FAILED' | 'RETRYING' | 'SKIPPED';
+
+export interface NotificationConfigDTO {
+  id?: string;
+  provider: NotificationProviderType;
+  name: string;
+  enabled: boolean;
+  botTokenMasked?: string | null;
+  botTokenConfigured?: boolean;
+  chatId?: string | null;
+  chatIdMasked?: string | null;
+  customTopicId?: string | null;
+  minSeverity?: 'INFO' | 'WARNING' | 'CRITICAL';
+  cooldownMinutes?: number;
+  rateLimitPerMin?: number;
+  events?: Record<string, boolean>;
+  metadata?: Record<string, any> | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpdateNotificationConfigInput {
+  enabled?: boolean;
+  botToken?: string;
+  chatId?: string;
+  customTopicId?: string | null;
+  minSeverity?: 'INFO' | 'WARNING' | 'CRITICAL';
+  cooldownMinutes?: number;
+  rateLimitPerMin?: number;
+  events?: Record<string, boolean>;
+}
+
+export interface NotificationDeliveryLogItem {
+  id: string;
+  provider: NotificationProviderType;
+  eventType: string;
+  severity: 'INFO' | 'WARNING' | 'CRITICAL';
+  title: string;
+  message: string;
+  recipientMasked?: string | null;
+  status: NotificationDeliveryStatus;
+  attempts: number;
+  errorDetails?: string | null;
+  durationMs: number;
+  createdAt: string;
+}
+

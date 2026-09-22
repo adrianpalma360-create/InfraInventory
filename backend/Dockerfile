@@ -23,7 +23,7 @@ RUN npm run build
 # Stage 2: Minimal Production Runtime
 FROM node:20-alpine AS runner
 
-ARG APP_VERSION=13.0.0
+ARG APP_VERSION=14.0.0
 
 LABEL org.opencontainers.image.title="InfraInventory Backend" \
       org.opencontainers.image.description="Fastify & Prisma REST/WebSocket API for InfraInventory NOC Platform" \
@@ -47,7 +47,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY docker-entrypoint.sh ./
 
-RUN chmod +x docker-entrypoint.sh && chown -R infrainventory:infrainventory /app
+RUN chmod +x docker-entrypoint.sh && mkdir -p /backups && chown -R infrainventory:infrainventory /app /backups
 
 USER infrainventory
 
