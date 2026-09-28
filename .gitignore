@@ -28,7 +28,6 @@ yarn-error.log*
 postgres_data/
 palma_postgres_data/
 infrainventory_postgres_data/
-backups/
 *.pg_dump*
 
 # IDE, OS & Editor Artifacts
