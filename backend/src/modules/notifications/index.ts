@@ -1,5 +1,5 @@
 /**
- * Palma Inventory - Notification Engine Architecture Stub
+ * IMP - Notification Engine Architecture Stub
  * Designed for:
  * - Telegram Bot alerts
  * - SMTP / Email notifications

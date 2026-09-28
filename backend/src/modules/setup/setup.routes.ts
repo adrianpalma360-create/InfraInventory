@@ -9,7 +9,7 @@ export const setupRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/setup/status', {
     schema: {
       tags: ['Setup'],
-      summary: 'Verificar el estado de instalación inicial de InfraInventory',
+      summary: 'Verificar el estado de instalación inicial de IMP',
       response: {
         200: {
           type: 'object',
@@ -91,7 +91,7 @@ export const setupRoutes: FastifyPluginAsync = async (fastify) => {
           token,
           user: result.user,
           permissions: result.permissions,
-          message: 'Instalación de InfraInventory completada correctamente',
+          message: 'Instalación de IMP completada correctamente',
         });
       } catch (err: any) {
         return reply.status(400).send({

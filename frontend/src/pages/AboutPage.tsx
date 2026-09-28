@@ -63,6 +63,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F1F5F9]">
                   {APP_CONFIG.APP_NAME}
                 </h1>
+                <span className="text-sm font-medium text-[#94A3B8] hidden sm:inline">
+                  {APP_CONFIG.APP_FULL_NAME}
+                </span>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-[#06B6D4]/15 text-[#06B6D4] border border-[#06B6D4]/30 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#06B6D4] animate-pulse" />
                   Versión {APP_CONFIG.APP_VERSION}
@@ -199,7 +202,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({
           <Layers className="w-5 h-5 text-[#8B5CF6]" />
           <div>
             <h3 className="text-base font-bold text-[#F1F5F9]">Módulos y Capacidades del Sistema</h3>
-            <p className="text-xs text-[#94A3B8]">Estructura de subsistemas integrados en InfraInventory</p>
+            <p className="text-xs text-[#94A3B8]">Estructura de subsistemas integrados en IMP</p>
           </div>
         </div>
 
@@ -227,7 +230,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({
           </span>
         </div>
         <span className="font-mono text-[11px] text-[#94A3B8] flex-shrink-0">
-          InfraInventory Versión {APP_CONFIG.APP_VERSION}
+          IMP Versión {APP_CONFIG.APP_VERSION}
         </span>
       </div>
     </div>

@@ -3,7 +3,7 @@ import { UpdateSettingsInput } from './settings.schema.js';
 import { logChange } from '../../utils/changelog.js';
 
 const DEFAULT_SETTINGS: UpdateSettingsInput = {
-  organizationName: 'Palma NOC Enterprise',
+  organizationName: 'IMP NOC Enterprise',
   primarySubnet: '192.168.1.0/24',
   discoveryTimeoutMs: 600,
   discoveryConcurrency: 32,

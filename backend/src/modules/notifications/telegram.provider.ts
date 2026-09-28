@@ -14,7 +14,7 @@ export class TelegramProvider {
     switch (event.eventType) {
       case 'TEST_MESSAGE': {
         return (
-          `🔔 <b>InfraInventory</b>\n\n` +
+          `🔔 <b>IMP</b>\n\n` +
           `Mensaje de prueba correctamente enviado.\n\n` +
           `<b>Servidor:</b> ${event.hostname || 'SRV-INFRA'}\n` +
           `<b>Fecha:</b> ${dateTimeFormatted}\n` +
@@ -178,7 +178,7 @@ export class TelegramProvider {
 
       default: {
         return (
-          `ℹ️ <b>INFRAINVENTORY NOTIFICACIÓN</b>\n\n` +
+          `ℹ️ <b>IMP NOTIFICACIÓN</b>\n\n` +
           (event.hostname ? `<b>Host:</b> <code>${event.hostname}</code>\n` : '') +
           (event.details ? `<b>Mensaje:</b> ${event.details}\n` : '') +
           `<b>Fecha:</b> ${dateTimeFormatted}`

@@ -1849,7 +1849,7 @@ export const TopologyPage: React.FC<TopologyPageProps> = ({
               <span>Importar Topología desde JSON</span>
             </h3>
             <p className="text-xs text-[#94A3B8] mb-4">
-              Pega la estructura JSON generada por InfraInventory para restaurar o duplicar un mapa.
+              Pega la estructura JSON generada por IMP para restaurar o duplicar un mapa.
             </p>
 
             <form onSubmit={handleImportTopology} className="space-y-4">

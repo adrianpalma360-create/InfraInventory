@@ -78,7 +78,7 @@ export const networkRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request, reply) => {
       const csv = await service.exportCsv();
       reply.header('Content-Type', 'text/csv; charset=utf-8');
-      reply.header('Content-Disposition', 'attachment; filename="infrainventory-ipam-export.csv"');
+      reply.header('Content-Disposition', 'attachment; filename="imp-ipam-export.csv"');
       return reply.send(csv);
     },
   });

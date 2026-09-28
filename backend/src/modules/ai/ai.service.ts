@@ -386,9 +386,9 @@ export class AIService {
     const title = `Informe de Infraestructura TI - ${input.reportType} (${input.period})`;
 
     let markdown = `# 📊 ${title}\n`;
-    markdown += `**Generado por**: InfraInventory AI (Usuario: \`${user.role}\`)  \n`;
+    markdown += `**Generado por**: IMP AI (Usuario: \`${user.role}\`)  \n`;
     markdown += `**Fecha de Emisión**: ${new Date().toLocaleString()}  \n`;
-    markdown += `**Plataforma**: InfraInventory\n\n`;
+    markdown += `**Plataforma**: IMP (Infrastructure Management Platform)\n\n`;
 
     markdown += `## 1. Resumen Ejecutivo de Disponibilidad\n`;
     markdown += `- **Hosts Totales**: ${stats.data?.infrastructure?.totalHosts || 0}\n`;

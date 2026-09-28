@@ -777,7 +777,7 @@ export class NetworksService {
       this.prisma.machine.findMany({ include: { location: true, vlan: true, tags: { include: { tag: true } } } }),
     ]);
 
-    let csv = '# INFRAINVENTORY IPAM EXPORT V6\n';
+    let csv = '# IMP IPAM EXPORT\n';
     csv += '# TYPE,ID,NAME_OR_IP,DETAILS,EXTRA1,EXTRA2\n';
 
     networks.forEach((n) => {

@@ -41,6 +41,70 @@ export const AppContent: React.FC = () => {
   const [globalSearch, setGlobalSearch] = useState('');
   const [isAddMachineTriggered, setIsAddMachineTriggered] = useState(false);
 
+  React.useEffect(() => {
+    const tabTitles: Partial<Record<NavigationTab, string>> = {
+      dashboard: 'Dashboard | IMP',
+      automation: 'Automation | IMP',
+      'automation-dashboard': 'Automation | IMP',
+      'automation-workflows': 'Workflows | IMP',
+      'automation-runs': 'Automation Runs | IMP',
+      'automation-actions': 'Actions | IMP',
+      'automation-approvals': 'Approvals | IMP',
+      'automation-agents': 'Agents | IMP',
+      'automation-policies': 'Policies | IMP',
+      ai: 'AI Assistant | IMP',
+      'ai-assistant': 'AI Assistant | IMP',
+      'ai-diagnostics': 'Diagnostics | IMP',
+      'ai-reports': 'AI Reports | IMP',
+      'ai-dashboard': 'AI Dashboard | IMP',
+      'ai-settings': 'AI Settings | IMP',
+      machines: 'Infrastructure | IMP',
+      networks: 'Networks | IMP',
+      ips: 'IPs | IMP',
+      ipam: 'IPAM | IMP',
+      'ipam-vlans': 'VLANs | IMP',
+      ports: 'Ports | IMP',
+      services: 'Services | IMP',
+      locations: 'Locations | IMP',
+      groups: 'Groups | IMP',
+      tags: 'Tags | IMP',
+      topology: 'Topology | IMP',
+      assets: 'Assets | IMP',
+      'assets-dashboard': 'Assets Dashboard | IMP',
+      'assets-inventory': 'Assets Inventory | IMP',
+      'assets-warranties': 'Warranties | IMP',
+      'assets-licenses': 'Licenses | IMP',
+      'assets-suppliers': 'Suppliers | IMP',
+      'assets-purchases': 'Purchases | IMP',
+      'assets-racks': 'Racks | IMP',
+      operations: 'Operations | IMP',
+      'operations-dashboard': 'Operations | IMP',
+      tickets: 'Incidents | IMP',
+      maintenance: 'Maintenance | IMP',
+      'infra-changes': 'Changes | IMP',
+      tasks: 'Tasks | IMP',
+      slas: 'SLAs | IMP',
+      runbooks: 'Runbooks | IMP',
+      calendar: 'Calendar | IMP',
+      discovery: 'Discovery | IMP',
+      'monitoring-status': 'Monitoring | IMP',
+      'monitoring-ports': 'Port Monitoring | IMP',
+      'monitoring-services': 'Service Monitoring | IMP',
+      'monitoring-problems': 'Problems | IMP',
+      graphs: 'Metrics | IMP',
+      changes: 'Audit Logs | IMP',
+      alerts: 'Incidents | IMP',
+      users: 'Users | IMP',
+      profile: 'Profile | IMP',
+      backups: 'Backups | IMP',
+      'import-export': 'Import/Export | IMP',
+      settings: 'Settings | IMP',
+      about: 'About | IMP',
+    };
+
+    document.title = tabTitles[currentTab] || 'IMP — Infrastructure Management Platform';
+  }, [currentTab]);
+
   const handleSelectTab = (tab: NavigationTab) => {
     setCurrentTab(tab);
     setSelectedMachineId(null);
@@ -145,7 +209,7 @@ export const AppContent: React.FC = () => {
               />
             )}
 
-            {/* 🤖 InfraInventory AI */}
+            {/* 🤖 IMP AI */}
             {(currentTab === 'ai' || currentTab === 'ai-assistant') && (
               <AiAssistantPage
                 initialTab="chat"

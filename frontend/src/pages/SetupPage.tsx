@@ -36,7 +36,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onComplete }) => {
   const [showPassword, setShowPassword] = useState(false);
 
   // Optional General Settings
-  const [organizationName, setOrganizationName] = useState('InfraInventory NOC');
+  const [organizationName, setOrganizationName] = useState('IMP NOC');
   const [description, setDescription] = useState('Centro de Control y Gestión de Infraestructura');
   const [timezone, setTimezone] = useState('Europe/Madrid');
   const [language, setLanguage] = useState('es');
@@ -119,10 +119,10 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onComplete }) => {
             <Server className="w-7 h-7 text-[#0B0F14]" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-[#F1F5F9]">
-            InfraInventory
+            IMP
           </h1>
           <p className="text-xs font-mono text-[#06B6D4] mt-0.5 tracking-wider uppercase">
-            NOC & Infraestructure managment
+            Infrastructure Management Platform
           </p>
         </div>
 
@@ -190,7 +190,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onComplete }) => {
                   <Sparkles className="w-6 h-6" />
                 </div>
                 <h2 className="text-lg font-bold text-[#F1F5F9]">
-                  Bienvenido a InfraInventory.
+                  Bienvenido a IMP.
                 </h2>
                 <p className="text-xs text-[#94A3B8] max-w-md mx-auto leading-relaxed">
                   Vamos a preparar tu instalación. En los siguientes pasos configuraremos la cuenta principal de administración de forma segura.
@@ -378,7 +378,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onComplete }) => {
                       type="text"
                       value={organizationName}
                       onChange={(e) => setOrganizationName(e.target.value)}
-                      placeholder="InfraInventory NOC"
+                      placeholder="IMP NOC"
                       className="w-full pl-9 pr-3 py-2 bg-[#0B0F14] border border-[#252D38] rounded-xl text-xs text-[#F1F5F9] focus:outline-none focus:border-[#3B82F6]"
                     />
                   </div>
@@ -492,7 +492,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({ onComplete }) => {
 
         {/* Footer info */}
         <div className="mt-6 text-center text-[11px] font-mono text-[#64748B]">
-          PostgreSQL &bull; Docker Environment &bull; InfraInventory Core
+          PostgreSQL &bull; Docker Environment &bull; IMP Core
         </div>
       </div>
     </div>

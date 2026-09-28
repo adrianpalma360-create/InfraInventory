@@ -30,7 +30,7 @@ export class SetupService {
           create: {
             key: 'INSTALLATION_STATUS',
             value: 'CONFIGURED',
-            description: 'Estado de instalación del sistema InfraInventory',
+            description: 'Estado de instalación del sistema IMP',
           },
         });
         return { isConfigured: true, status: 'CONFIGURED' };
@@ -51,7 +51,7 @@ export class SetupService {
       });
 
       if (setting && setting.value === 'CONFIGURED') {
-        throw new Error('InfraInventory ya está configurado. El asistente de instalación se encuentra bloqueado.');
+        throw new Error('IMP ya está configurado. El asistente de instalación se encuentra bloqueado.');
       }
 
       const existingAdminCount = await tx.user.count({
@@ -109,7 +109,7 @@ export class SetupService {
         { key: 'SETUP_COMPLETED_AT', value: new Date().toISOString(), description: 'Fecha y hora de finalización del setup' },
         {
           key: 'organizationName',
-          value: input.organizationName?.trim() || 'InfraInventory NOC',
+          value: input.organizationName?.trim() || 'IMP NOC',
           description: 'Nombre de la organización',
         },
       ];

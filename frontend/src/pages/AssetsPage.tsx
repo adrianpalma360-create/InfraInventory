@@ -658,7 +658,7 @@ export const AssetsPage: React.FC<AssetsPageProps> = ({
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `InfraInventory_Assets_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `IMP_Assets_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -717,7 +717,7 @@ export const AssetsPage: React.FC<AssetsPageProps> = ({
             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#06B6D4]/10 text-[#06B6D4] border border-[#06B6D4]/30 font-mono uppercase">
               Activos IT & Hardware
             </span>
-            <span className="text-xs text-[#64748B] font-mono">InfraInventory NOC</span>
+            <span className="text-xs text-[#64748B] font-mono">IMP NOC</span>
           </div>
           <h1 className="text-2xl font-bold text-[#F1F5F9] mt-1 flex items-center gap-2">
             <Laptop className="w-6 h-6 text-[#06B6D4]" />

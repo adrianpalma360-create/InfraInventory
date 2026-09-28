@@ -1,5 +1,5 @@
 # ============================================================
-# InfraInventory Backend - Multi-Stage Production Dockerfile
+# IMP Backend - Multi-Stage Production Dockerfile
 # ============================================================
 
 # Stage 1: Build TypeScript & Generate Prisma Client
@@ -25,8 +25,8 @@ FROM node:20-alpine AS runner
 
 ARG APP_VERSION=15.0.0
 
-LABEL org.opencontainers.image.title="InfraInventory Backend" \
-      org.opencontainers.image.description="Fastify & Prisma REST/WebSocket API for InfraInventory NOC Platform" \
+LABEL org.opencontainers.image.title="IMP Backend" \
+      org.opencontainers.image.description="Fastify & Prisma REST/WebSocket API for IMP - Infrastructure Management Platform" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.vendor="Adrian Palma" \
       org.opencontainers.image.authors="Adrian Palma" \

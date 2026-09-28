@@ -178,7 +178,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-extrabold tracking-tight text-[#F1F5F9] font-mono">
-              INFRAINVENTORY NOC
+              IMP NOC
             </h1>
           </div>
           <p className="text-xs text-[#94A3B8] mt-0.5">
@@ -195,7 +195,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               onClick={onNavigateToAi}
               className="border-[#06B6D4]/30 hover:border-[#06B6D4] text-[#06B6D4]"
             >
-              🤖 Analizar con InfraAI
+              🤖 Analizar con IMP AI
             </Button>
           )}
           <Can permission="MACHINE_CREATE">
@@ -272,7 +272,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div className="max-w-md">
             <h3 className="text-sm font-bold text-[#F1F5F9]">Sin infraestructura monitorizada</h3>
             <p className="text-xs text-[#94A3B8] mt-1 leading-relaxed">
-              InfraInventory está listo. Comienza añadiendo tu primera máquina al inventario o ejecutando un escaneo de red en el módulo Discovery.
+              IMP está listo. Comienza añadiendo tu primera máquina al inventario o ejecutando un escaneo de red en el módulo Discovery.
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">

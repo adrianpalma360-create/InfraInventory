@@ -37,12 +37,12 @@ export const Topbar: React.FC<TopbarProps> = ({
     'automation-approvals': 'Automatización / Aprobaciones (Principio de 4 Ojos)',
     'automation-agents': 'Automatización / Agentes de Infraestructura',
     'automation-policies': 'Automatización / Políticas & Reglas de Seguridad',
-    ai: 'InfraInventory AI / Asistente Inteligente',
-    'ai-assistant': 'InfraInventory AI / Chat Inteligente Asistente',
-    'ai-diagnostics': 'InfraInventory AI / Diagnóstico 360° de Infraestructura',
-    'ai-reports': 'InfraInventory AI / Generador de Informes Técnicos',
-    'ai-dashboard': 'InfraInventory AI / Panel de Control & Auditoría de Consultas',
-    'ai-settings': 'InfraInventory AI / Ajustes de Proveedor & Modelo LLM',
+    ai: 'IMP AI / Asistente Inteligente',
+    'ai-assistant': 'IMP AI / Chat Inteligente Asistente',
+    'ai-diagnostics': 'IMP AI / Diagnóstico 360° de Infraestructura',
+    'ai-reports': 'IMP AI / Generador de Informes Técnicos',
+    'ai-dashboard': 'IMP AI / Panel de Control & Auditoría de Consultas',
+    'ai-settings': 'IMP AI / Ajustes de Proveedor & Modelo LLM',
     machines: 'Inventario / Máquinas & Equipos',
     networks: 'Inventario / Redes & Subredes',
     ips: 'IPAM / Direccionamiento IP & Conflictos',
@@ -84,7 +84,7 @@ export const Topbar: React.FC<TopbarProps> = ({
     backups: 'Copias de Seguridad & Restauración',
     'import-export': 'Importación y Exportación de Inventario',
     settings: 'Configuración del Sistema',
-    about: 'Acerca de InfraInventory & Licencia',
+    about: 'Acerca de IMP & Licencia',
   };
 
   // Close dropdowns on outside click
@@ -126,7 +126,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   return (
     <header className="h-16 bg-[#0F141B]/90 backdrop-blur-md border-b border-[#252D38] px-6 flex items-center justify-between sticky top-0 z-30">
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-[#64748B] font-medium">InfraInventory</span>
+        <span className="text-[#64748B] font-medium">IMP</span>
         <span className="text-[#252D38]">/</span>
         {breadcrumbs && breadcrumbs.length > 0 ? (
           breadcrumbs.map((b, idx) => (
@@ -281,7 +281,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                   className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-[#94A3B8] hover:text-[#06B6D4] hover:bg-[#151B23] transition-colors text-left"
                 >
                   <Info className="w-3.5 h-3.5 text-[#06B6D4]" />
-                  Acerca de InfraInventory
+                  Acerca de IMP
                 </button>
               </div>
 

@@ -22,7 +22,7 @@ async function start() {
 
   try {
     const address = await app.listen({ port, host });
-    app.log.info(`🔍 Palma Inventory Discovery Engine running at ${address}`);
+    app.log.info(`🔍 IMP Discovery Engine running at ${address}`);
   } catch (err) {
     app.log.error(err);
     process.exit(1);

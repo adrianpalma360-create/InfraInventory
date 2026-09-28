@@ -414,7 +414,7 @@ export class NotificationService {
       eventType: 'TEST_MESSAGE',
       severity: 'INFO',
       hostname: 'SRV-INFRA',
-      details: 'Mensaje de prueba de conectividad de InfraInventory',
+      details: 'Mensaje de prueba de conectividad de IMP',
       timestamp: new Date(),
     };
 

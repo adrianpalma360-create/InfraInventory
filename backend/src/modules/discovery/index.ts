@@ -1,5 +1,5 @@
 /**
- * Palma Inventory - Discovery Module Architecture Stub
+ * IMP - Discovery Module Architecture Stub
  * Designed for:
  * - Ping Sweeps (ICMP / ARP)
  * - Nmap / TCP Port Scanning

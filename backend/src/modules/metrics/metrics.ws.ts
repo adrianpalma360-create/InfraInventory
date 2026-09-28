@@ -91,7 +91,7 @@ class MetricsWsHub {
       JSON.stringify({
         type: 'status',
         status: 'CONNECTED',
-        message: 'Connected to Palma NOC Metrics Real-Time Hub',
+        message: 'Connected to IMP NOC Metrics Real-Time Hub',
         clientsCount: this.clients.size,
         timestamp: new Date().toISOString(),
       })

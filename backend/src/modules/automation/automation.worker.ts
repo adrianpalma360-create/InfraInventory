@@ -139,7 +139,7 @@ export class AutomationWorker {
 
         const actionDef = this.registry.get(step.actionName);
         if (!actionDef) {
-          const err = `Acción '${step.actionName}' no está registrada en el catálogo de InfraInventory`;
+          const err = `Acción '${step.actionName}' no está registrada en el catálogo de IMP`;
           executionLogs.push(`[${new Date().toISOString()}] ERROR: ${err}`);
           await this.prisma.workflowRunStep.update({
             where: { id: stepRunRecord.id },

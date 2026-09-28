@@ -27,7 +27,8 @@ export const APP_VERSION = `${APP_VERSION_INFO.major}.${APP_VERSION_INFO.minor}.
 }`;
 
 export const APP_CONFIG = {
-  APP_NAME: 'InfraInventory',
+  APP_NAME: 'IMP',
+  APP_FULL_NAME: 'Infrastructure Management Platform',
   APP_VERSION,
   APP_VERSION_INFO,
   APP_AUTHOR: 'Adrian Palma',
@@ -35,7 +36,7 @@ export const APP_CONFIG = {
   APP_COPYRIGHT_LEGAL: 'Todos los derechos reservados.',
   APP_DESCRIPTION:
     'Plataforma de gestión, inventario, descubrimiento y monitorización de infraestructura.',
-  APP_NOC_TITLE: 'Palma NOC Enterprise',
+  APP_NOC_TITLE: 'IMP NOC Enterprise',
 } as const;
 
 export default APP_CONFIG;

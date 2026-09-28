@@ -757,7 +757,7 @@ export const AutomationPage: React.FC<AutomationPageProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between bg-[#161B22] p-4 rounded-xl border border-[#30363D]">
             <div>
-              <h3 className="text-sm font-bold text-[#F0F6FC] mb-1">Agentes de Infraestructura (InfraInventory Agent)</h3>
+              <h3 className="text-sm font-bold text-[#F0F6FC] mb-1">Agentes de Infraestructura (IMP Agent)</h3>
               <p className="text-xs text-[#8B949E]">
                 Agentes ligeros en Windows/Linux para telemetría continua y ejecución no intrusiva.
               </p>
@@ -1247,7 +1247,7 @@ export const AutomationPage: React.FC<AutomationPageProps> = ({
             <div className="flex items-center justify-between border-b border-[#30363D] pb-3">
               <h3 className="text-base font-bold text-[#F0F6FC] flex items-center gap-2">
                 <Server className="w-5 h-5 text-cyan-400" />
-                Registrar InfraInventory Agent
+                Registrar IMP Agent
               </h3>
               <button onClick={() => { setIsRegisterAgentOpen(false); setNewAgentToken(null); }} className="text-[#8B949E] hover:text-[#F0F6FC]">
                 ✕

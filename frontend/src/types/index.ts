@@ -1776,7 +1776,7 @@ export interface CalendarEvent {
 }
 
 // ============================================================
-// INFRAINVENTORY V10: AI & INTELLIGENT ASSISTANT TYPES
+// IMP AI & INTELLIGENT ASSISTANT TYPES
 // ============================================================
 
 export interface AIFinding {

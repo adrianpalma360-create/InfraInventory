@@ -179,13 +179,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#8B5CF6] via-[#3B82F6] to-[#06B6D4] flex items-center justify-center shadow-lg shadow-cyan-500/20">
           <Bot className="w-5 h-5 text-[#0B0F14]" />
         </div>
-        <div>
+        <div className="min-w-0">
           <div className="font-bold tracking-tight text-[#F1F5F9] text-base leading-tight flex items-center gap-1.5">
-            InfraInventory
+            IMP
           </div>
-          <div className="text-[10px] uppercase font-mono tracking-widest text-[#06B6D4] font-semibold flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#06B6D4] animate-pulse" />
-            NOC &bull; GESTIÓN INTEGRAL
+          <div className="text-[10px] text-[#94A3B8] font-normal leading-tight truncate">
+            Infrastructure Management Platform
           </div>
         </div>
       </div>
@@ -309,7 +308,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* 🤖 InfraInventory AI (Asistente Inteligente) */}
+        {/* 🤖 IMP AI (Asistente Inteligente) */}
         <div className="pt-2">
           <button
             onClick={() => setIsAIOpen(!isAIOpen)}

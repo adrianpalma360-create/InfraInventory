@@ -44,11 +44,11 @@ export class AIEngine {
 
     if (config.provider === 'ollama' || config.provider === 'openai') {
       try {
-        const systemPrompt = `Eres InfraAI, el Asistente Inteligente de Operaciones IT de InfraInventory.
+        const systemPrompt = `Eres IMP AI, el Asistente Inteligente de Operaciones IT de IMP (Infrastructure Management Platform).
 REGLAS ABSOLUTAS:
 1. Eres un asistente estrictamente READ-ONLY. No puedes modificar ni ejecutar acciones sobre la infraestructura.
 2. Responde ÚNICAMENTE utilizando los datos reales proporcionados en la sección <DATOS_INFRAESTRUCTURA>.
-3. Si la información solicitada NO está presente en los datos, responde taxativamente: "No dispongo de ese dato en InfraInventory."
+3. Si la información solicitada NO está presente en los datos, responde taxativamente: "No dispongo de ese dato en IMP."
 4. NO inventes ni asumas causalidades sin evidencia. Distingue entre datos observados e interpretación técnica.
 5. NO incluyas ninguna versión de la aplicación en tus respuestas.
 6. Presenta la información en tablas o listas Markdown limpias y estructuradas cuando corresponda.
@@ -178,7 +178,7 @@ REGLAS ABSOLUTAS:
         recommendations.push(`Verificar conectividad de red y alimentación eléctrica en los ${offlineHosts.length} hosts caídos.`);
       }
 
-      evidence.push({ source: 'InfraInventory Monitoring', detail: 'Estado en tiempo real de hosts', link: '/monitoring' });
+      evidence.push({ source: 'IMP Monitoring', detail: 'Estado en tiempo real de hosts', link: '/monitoring' });
       return { toolsUsed, retrievedData, defaultReasoning: { content, findings, evidence, recommendations, relatedEntities } };
     }
 
@@ -211,7 +211,7 @@ REGLAS ABSOLUTAS:
         recommendations.push(`Priorizar la resolución de las ${criticalCount} alertas de nivel CRITICAL.`);
       }
 
-      evidence.push({ source: 'InfraInventory Alerts Engine', detail: 'Registro activo de incidencias NOC', link: '/alerts' });
+      evidence.push({ source: 'IMP Alerts Engine', detail: 'Registro activo de incidencias NOC', link: '/alerts' });
       return { toolsUsed, retrievedData, defaultReasoning: { content, findings, evidence, recommendations, relatedEntities } };
     }
 
@@ -240,7 +240,7 @@ REGLAS ABSOLUTAS:
         content += `\n*Fuentes consultadas: Backups Engine*\n`;
       }
 
-      evidence.push({ source: 'InfraInventory Backup Engine', detail: 'Catálogo de backups e integridad', link: '/backups' });
+      evidence.push({ source: 'IMP Backup Engine', detail: 'Catálogo de backups e integridad', link: '/backups' });
       return { toolsUsed, retrievedData, defaultReasoning: { content, findings, evidence, recommendations, relatedEntities } };
     }
 
@@ -271,7 +271,7 @@ REGLAS ABSOLUTAS:
       }
       content += `\n*Fuentes consultadas: Discovery Engine*\n`;
 
-      evidence.push({ source: 'InfraInventory Discovery', detail: 'Escaneos y detección de diffs de red', link: '/discovery' });
+      evidence.push({ source: 'IMP Discovery', detail: 'Escaneos y detección de diffs de red', link: '/discovery' });
       return { toolsUsed, retrievedData, defaultReasoning: { content, findings, evidence, recommendations, relatedEntities } };
     }
 
@@ -294,7 +294,7 @@ REGLAS ABSOLUTAS:
       }
       content += `\n*Fuentes consultadas: ChangeLog Audit Trail*\n`;
 
-      evidence.push({ source: 'InfraInventory Audit Logs', detail: 'Registro inmutable de cambios', link: '/changes' });
+      evidence.push({ source: 'IMP Audit Logs', detail: 'Registro inmutable de cambios', link: '/changes' });
       return { toolsUsed, retrievedData, defaultReasoning: { content, findings, evidence, recommendations, relatedEntities } };
     }
 
@@ -324,7 +324,7 @@ REGLAS ABSOLUTAS:
     );
 
     content = `### 📋 Resumen Operativo de Infraestructura\n\n`;
-    content += `InfraInventory está supervisando un total de **${total} dispositivos** con una disponibilidad global de **${summary.infrastructure?.healthRate || '100%'}**.\n\n`;
+    content += `IMP está supervisando un total de **${total} dispositivos** con una disponibilidad global de **${summary.infrastructure?.healthRate || '100%'}**.\n\n`;
     content += `- 🟢 **Hosts Operativos (Online)**: ${online}\n`;
     content += `- 🟡 **Hosts en Advertencia (Warning)**: ${warn}\n`;
     content += `- 🔴 **Hosts Fuera de Línea (Offline)**: ${off}\n`;
@@ -339,7 +339,7 @@ REGLAS ABSOLUTAS:
     }
 
     content += `*Fuentes consultadas: Monitoring, Alerts, Inventory*\n`;
-    evidence.push({ source: 'InfraInventory NOC Core', detail: 'Supervisión en tiempo real', link: '/dashboard' });
+    evidence.push({ source: 'IMP NOC Core', detail: 'Supervisión en tiempo real', link: '/dashboard' });
 
     return { toolsUsed, retrievedData, defaultReasoning: { content, findings, evidence, recommendations, relatedEntities } };
   }

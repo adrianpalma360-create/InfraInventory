@@ -60,7 +60,7 @@ export async function probeTcpPort(
       } else if (port === 80 || port === 8080 || port === 8000 || port === 8006 || port === 9000 || port === 8123) {
         // Send a fast HTTP HEAD request to extract Server header
         try {
-          socket.write(`HEAD / HTTP/1.0\r\nHost: ${ip}\r\nUser-Agent: InfraInventory-Discovery\r\n\r\n`);
+          socket.write(`HEAD / HTTP/1.0\r\nHost: ${ip}\r\nUser-Agent: IMP-Discovery\r\n\r\n`);
           socket.once('data', (data) => {
             const text = data.toString('utf-8');
             const serverMatch = text.match(/Server:\s*([^\r\n]+)/i);

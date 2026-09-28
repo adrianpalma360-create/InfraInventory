@@ -53,7 +53,7 @@ export const assetRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request, reply) => {
       const csv = await service.exportAssetsCsv();
       reply.header('Content-Type', 'text/csv');
-      reply.header('Content-Disposition', 'attachment; filename="infrainventory_assets_v8.csv"');
+      reply.header('Content-Disposition', 'attachment; filename="imp_assets_export.csv"');
       return reply.send(csv);
     },
   });

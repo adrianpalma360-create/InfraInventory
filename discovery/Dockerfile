@@ -16,8 +16,8 @@ FROM node:20-alpine AS runner
 
 ARG APP_VERSION=15.0.0
 
-LABEL org.opencontainers.image.title="InfraInventory Discovery" \
-      org.opencontainers.image.description="Advanced Network discovery, SNMP & port scanner microservice for InfraInventory" \
+LABEL org.opencontainers.image.title="IMP Discovery" \
+      org.opencontainers.image.description="Advanced Network discovery, SNMP & port scanner microservice for IMP" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.vendor="Adrian Palma" \
       org.opencontainers.image.authors="Adrian Palma" \

@@ -7,8 +7,8 @@ const swaggerPlugin: FastifyPluginAsync = async (fastify) => {
   await fastify.register(swagger, {
     openapi: {
       info: {
-        title: 'Palma Inventory API',
-        description: 'REST API for Palma Inventory & NOC Platform',
+        title: 'IMP API',
+        description: 'REST API for IMP - Infrastructure Management Platform',
         version: '1.0.0',
       },
       servers: [

@@ -48,7 +48,7 @@ async function main() {
         create: {
           key: 'INSTALLATION_STATUS',
           value: 'CONFIGURED',
-          description: 'Estado de instalación del sistema InfraInventory',
+          description: 'Estado de instalación del sistema IMP',
         },
       });
     }
@@ -60,7 +60,7 @@ async function main() {
       create: {
         key: 'INSTALLATION_STATUS',
         value: 'CONFIGURED',
-        description: 'Estado de instalación del sistema InfraInventory',
+        description: 'Estado de instalación del sistema IMP',
       },
     });
   } else {
@@ -93,7 +93,7 @@ async function main() {
 
   // 3. Initialize Global System Settings
   const defaultSettings = [
-    { key: 'organizationName', value: 'InfraInventory' },
+    { key: 'organizationName', value: 'IMP NOC' },
     { key: 'discoveryTimeoutMs', value: '600' },
     { key: 'discoveryConcurrency', value: '32' },
     { key: 'sessionExpiryDays', value: '7' },
@@ -110,7 +110,7 @@ async function main() {
   }
 
   console.log('⚙️ Default system settings configured.');
-  console.log('✅ InfraInventory Seed completed (Clean Production Mode).');
+  console.log('✅ IMP Seed completed (Clean Production Mode).');
 }
 
 main()

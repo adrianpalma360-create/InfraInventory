@@ -1,5 +1,5 @@
 /**
- * Palma Inventory - Monitoring Engine Architecture Stub
+ * IMP - Monitoring Engine Architecture Stub
  * Designed for:
  * - ICMP Ping Heartbeat Checkers
  * - HTTP / HTTPS Endpoint Healthchecks

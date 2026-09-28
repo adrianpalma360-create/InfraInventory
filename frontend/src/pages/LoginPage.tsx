@@ -45,10 +45,10 @@ export const LoginPage: React.FC = () => {
             <Activity className="w-8 h-8 text-[#0B0F14]" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-[#F1F5F9]">
-            InfraInventory
+            IMP
           </h1>
           <p className="text-xs uppercase font-mono tracking-widest text-[#06B6D4] font-semibold mt-1">
-            NOC & Infrastructure Platform
+            Infrastructure Management Platform
           </p>
         </div>
 
@@ -135,7 +135,7 @@ export const LoginPage: React.FC = () => {
 
         {/* Footer */}
         <div className="text-center mt-6 text-xs text-[#64748B]">
-          InfraInventory &copy; 2026 — Plataforma Segura de Operaciones de Red
+          IMP &copy; 2026 — Plataforma Segura de Operaciones de Red
         </div>
       </div>
     </div>

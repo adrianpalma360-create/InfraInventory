@@ -383,7 +383,7 @@ export const IpamPage: React.FC<IpamPageProps> = ({
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `infrainventory-ipam-${new Date().toISOString().slice(0, 10)}.csv`);
+      link.setAttribute('download', `imp-ipam-${new Date().toISOString().slice(0, 10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

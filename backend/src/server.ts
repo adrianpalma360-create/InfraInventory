@@ -11,7 +11,7 @@ async function start() {
       app.log.info(`Received ${signal}. Gracefully shutting down...`);
       try {
         await app.close();
-        app.log.info('Palma Inventory Fastify server closed successfully');
+        app.log.info('IMP Fastify server closed successfully');
         process.exit(0);
       } catch (err) {
         app.log.error(err, 'Error during shutdown');
@@ -25,7 +25,7 @@ async function start() {
       port: env.PORT,
       host: env.HOST,
     });
-    app.log.info(`🚀 Palma Inventory Backend running at ${address}`);
+    app.log.info(`🚀 IMP Backend running at ${address}`);
     app.log.info(`📚 Swagger OpenAPI documentation at ${address}/docs`);
   } catch (err) {
     app.log.error(err);

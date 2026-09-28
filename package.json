@@ -1,7 +1,7 @@
 {
   "name": "infrainventory",
   "version": "15.0.0",
-  "description": "InfraInventory - Enterprise Infrastructure & NOC Platform",
+  "description": "IMP - Infrastructure Management Platform",
   "private": true,
   "type": "module",
   "scripts": {

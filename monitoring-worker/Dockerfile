@@ -16,8 +16,8 @@ FROM node:20-alpine AS runner
 
 ARG APP_VERSION=15.0.0
 
-LABEL org.opencontainers.image.title="InfraInventory Monitoring Worker" \
-      org.opencontainers.image.description="Real-time telemetry and monitoring daemon for InfraInventory" \
+LABEL org.opencontainers.image.title="IMP Monitoring Worker" \
+      org.opencontainers.image.description="Real-time telemetry and monitoring daemon for IMP - Infrastructure Management Platform" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.vendor="Adrian Palma" \
       org.opencontainers.image.authors="Adrian Palma" \

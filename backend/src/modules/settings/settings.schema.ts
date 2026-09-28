@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const updateSettingsSchema = z.object({
-  organizationName: z.string().min(1).default('Palma NOC Enterprise'),
+  organizationName: z.string().min(1).default('IMP NOC Enterprise'),
   primarySubnet: z.string().default('192.168.1.0/24'),
   discoveryTimeoutMs: z.coerce.number().min(100).max(5000).default(600),
   discoveryConcurrency: z.coerce.number().min(1).max(100).default(32),

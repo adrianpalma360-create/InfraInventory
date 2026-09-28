@@ -1242,7 +1242,7 @@ export const api = {
   },
 
   // ============================================================
-  // INFRAINVENTORY V10: AI & INTELLIGENT ASSISTANT API
+  // IMP AI & INTELLIGENT ASSISTANT API
   // ============================================================
   sendAIChat: (data: { message: string; conversationId?: string; context?: any }) =>
     request<{ conversationId: string; messageId: string; response: AIGroundedResponse }>('/ai/chat', {

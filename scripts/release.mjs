@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * InfraInventory - Centralized Release & Semantic Versioning Manager
+ * IMP - Centralized Release & Semantic Versioning Manager
  * 
  * Manages semantic versioning (MAJOR.MINOR.PATCH) and keeps all metadata
  * in sync across backend, frontend, Dockerfiles, package.json files, and GitHub Actions.
@@ -363,7 +363,7 @@ function main() {
   }
 
   console.log(`
-InfraInventory Release Manager
+IMP Release Manager
 Usage:
   node scripts/release.mjs current             # Print current version
   node scripts/release.mjs bump [patch]        # Bump PATCH (11.0.0 -> 11.0.1)

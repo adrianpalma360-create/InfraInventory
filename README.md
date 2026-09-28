@@ -1,8 +1,7 @@
-# InfraInventory
+# IMP
+> **Infrastructure Management Platform**
 
-> **NOC & Infrastructure Management Platform**
-
-InfraInventory es una plataforma integral para el inventario, monitorización y gestión de infraestructura IT y centros de operaciones de red (NOC). Diseñada para operar de forma totalmente contenerizada, segura y desacoplada mediante Docker, GHCR y Portainer.
+IMP (Infrastructure Management Platform) es una plataforma integral para el inventario, monitorización y gestión de infraestructura IT y centros de operaciones de red (NOC). Diseñada para operar de forma totalmente contenerizada, segura y desacoplada mediante Docker, GHCR y Portainer.
 
 ---
 
@@ -27,11 +26,11 @@ InfraInventory es una plataforma integral para el inventario, monitorización y 
 
 ## 📊 Dashboard NOC (Centro de Operaciones de Red)
 
-InfraInventory 12.0.0 incorpora un Dashboard NOC profesional enfocado en la detección de incidencias en menos de 10 segundos:
+IMP incorpora un Dashboard NOC profesional enfocado en la detección de incidencias en menos de 10 segundos:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ INFRAINVENTORY NOC 12.0.0               [LIVE STREAM 🟢] [Auto Refresh: 1m] [Actualizar]│
+│ IMP NOC                                 [LIVE STREAM 🟢] [Auto Refresh: 1m] [Actualizar]│
 │ Filtros: [📁 Grupos] [📍 Ubicaciones] [⚡ Estados] [🏷️ Tags]          [Periodo: 24h]    │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │ [ 🔴 2 CRITICAL ALERTS ] ───► SRV-DB01 (Disk usage 97%) | PROXMOX01 (Node unreachable)│

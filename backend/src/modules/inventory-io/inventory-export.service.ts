@@ -100,7 +100,7 @@ export class InventoryExportService {
         ]);
 
         const migrationData = {
-          format: 'infrainventory-export',
+          format: 'imp-export',
           formatVersion: 1,
           applicationVersion: APP_CONFIG.APP_VERSION,
           exportedAt: new Date().toISOString(),

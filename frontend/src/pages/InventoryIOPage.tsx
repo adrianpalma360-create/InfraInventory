@@ -258,7 +258,7 @@ export const InventoryIOPage: React.FC = () => {
                     { id: 'CSV', label: 'CSV Estándar', desc: 'Valores separados por comas compatible con cualquier hoja de cálculo', icon: FileText },
                     { id: 'XLSX', label: 'Excel (XLSX)', desc: 'Libro de cálculo estructurado con formato de tabla', icon: FileSpreadsheet },
                     { id: 'JSON', label: 'JSON Completo', desc: 'Estructura jerárquica con interfaces, tags y puertos anidados', icon: FileCode2 },
-                    { id: 'MIGRATION_JSON', label: 'Migration JSON', desc: 'Paquete completo para migrar a otra instancia de InfraInventory', icon: ShieldCheck },
+                    { id: 'MIGRATION_JSON', label: 'Migration JSON', desc: 'Paquete completo para migrar a otra instancia de IMP', icon: ShieldCheck },
                   ].map((fmt) => {
                     const Icon = fmt.icon;
                     const isSelected = exportFilter.format === fmt.id;
@@ -493,7 +493,7 @@ export const InventoryIOPage: React.FC = () => {
                   >
                     <option value="CSV">CSV (Valores separados por comas o tabulador)</option>
                     <option value="JSON">JSON Array</option>
-                    <option value="MIGRATION_JSON">InfraInventory Migration Package</option>
+                    <option value="MIGRATION_JSON">IMP Migration Package</option>
                   </select>
                 </div>
               </div>

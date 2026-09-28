@@ -339,7 +339,7 @@ export const AiAssistantPage: React.FC<AiAssistantPageProps> = ({
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-[#F1F5F9] flex items-center gap-2.5">
               <Bot className="w-7 h-7 text-[#06B6D4]" />
-              InfraInventory AI — Asistente Inteligente
+              IMP AI — Asistente Inteligente
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-[#06B6D4]/10 text-[#06B6D4] border border-[#06B6D4]/30">
               LOCAL-FIRST • READ ONLY
@@ -432,7 +432,7 @@ export const AiAssistantPage: React.FC<AiAssistantPageProps> = ({
                 <span>Garantía de Seguridad</span>
               </div>
               <p className="text-[10px] text-[#64748B] leading-tight">
-                Respuestas fundamentadas exclusivamente en datos reales de InfraInventory con permisos de solo lectura.
+                Respuestas fundamentadas exclusivamente en datos reales de IMP con permisos de solo lectura.
               </p>
             </div>
           </div>
@@ -602,7 +602,7 @@ export const AiAssistantPage: React.FC<AiAssistantPageProps> = ({
                   type="text"
                   value={inputPrompt}
                   onChange={(e) => setInputPrompt(e.target.value)}
-                  placeholder="Pregunta a InfraInventory AI (ej. '¿Qué servidores tienen problemas de rendimiento?')..."
+                  placeholder="Pregunta a IMP AI (ej. '¿Qué servidores tienen problemas de rendimiento?')..."
                   className="flex-1 bg-[#0F141B] border border-[#252D38] rounded-xl px-4 py-3 text-xs text-[#F1F5F9] focus:outline-none focus:border-[#06B6D4] transition-all placeholder-[#64748B]"
                   disabled={isSending}
                 />
@@ -859,7 +859,7 @@ export const AiAssistantPage: React.FC<AiAssistantPageProps> = ({
                 className="rounded bg-[#151B23] border-[#252D38] text-[#06B6D4] w-4 h-4"
               />
               <label htmlFor="aiEnabled" className="text-xs font-semibold text-[#F1F5F9]">
-                Habilitar InfraInventory AI en la plataforma
+                Habilitar IMP AI en la plataforma
               </label>
             </div>
 

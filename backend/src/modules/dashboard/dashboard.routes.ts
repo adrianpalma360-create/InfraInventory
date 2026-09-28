@@ -11,7 +11,7 @@ export const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/dashboard/overview', {
     schema: {
       tags: ['Dashboard'],
-      summary: 'Obtener información consolidada del panel NOC de InfraInventory',
+      summary: 'Obtener información consolidada del panel NOC de IMP',
       querystring: {
         type: 'object',
         properties: {
@@ -39,7 +39,7 @@ export const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/dashboard/overview', {
     schema: {
       tags: ['Dashboard'],
-      summary: 'Alias para obtener información consolidada del panel NOC de InfraInventory',
+      summary: 'Alias para obtener información consolidada del panel NOC de IMP',
     },
     handler: async (request, reply) => {
       try {
