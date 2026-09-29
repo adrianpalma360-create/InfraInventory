@@ -1,12 +1,13 @@
 {
   "name": "infrainventory",
-  "version": "15.0.0",
+  "version": "15.1.0",
   "description": "IMP - Infrastructure Management Platform",
   "private": true,
   "type": "module",
   "scripts": {
     "version:get": "node scripts/release.mjs current",
     "version:check": "node scripts/release.mjs check",
+    "version:test": "node scripts/test-version.mjs",
     "version:bump": "node scripts/release.mjs bump",
     "version:minor": "node scripts/release.mjs bump minor",
     "version:major": "node scripts/release.mjs bump major",

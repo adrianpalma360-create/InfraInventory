@@ -14,7 +14,7 @@ RUN npm run build
 # Stage 2: Production runner
 FROM node:20-alpine AS runner
 
-ARG APP_VERSION=15.0.0
+ARG APP_VERSION=15.1.0
 
 LABEL org.opencontainers.image.title="IMP Discovery" \
       org.opencontainers.image.description="Advanced Network discovery, SNMP & port scanner microservice for IMP" \

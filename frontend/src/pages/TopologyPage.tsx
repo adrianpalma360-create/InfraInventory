@@ -695,7 +695,7 @@ export const TopologyPage: React.FC<TopologyPageProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#0B0F14] text-[#F1F5F9] overflow-hidden select-none">
+    <div className="flex flex-col h-[calc(100vh-10rem)] min-h-[600px] rounded-2xl border border-[#252D38] bg-[#0B0F14] text-[#F1F5F9] overflow-hidden select-none shadow-2xl">
       {/* 1. Header Toolbar */}
       <div className="bg-[#0F141B] border-b border-[#252D38] p-3 flex flex-wrap items-center justify-between gap-3 z-20">
         {/* Left: Topology selector & actions */}

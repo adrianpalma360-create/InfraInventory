@@ -44,7 +44,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({
   }, []);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-200 max-w-5xl mx-auto pb-10">
+    <div className="space-y-8 animate-in fade-in duration-200 w-full pb-10">
       {/* Hero Header Card */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0F141B] via-[#151B23] to-[#0F141B] border border-[#252D38] p-6 sm:p-8 shadow-2xl">
         {/* Glow effect background */}

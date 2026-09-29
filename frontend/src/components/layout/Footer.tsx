@@ -11,7 +11,7 @@ interface FooterProps {
 export const Footer: React.FC<FooterProps> = ({ onSelectTab, className = '' }) => {
   return (
     <footer
-      className={`border-t border-[#252D38]/80 bg-[#0F141B]/95 py-2.5 px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-[#64748B] select-none transition-colors ${className}`}
+      className={`border-t border-[#252D38]/80 bg-[#0F141B]/95 py-2.5 px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-[#64748B] select-none transition-colors flex-shrink-0 ${className}`}
     >
       {/* Left: App Name & Copyright */}
       <div className="flex items-center gap-2">

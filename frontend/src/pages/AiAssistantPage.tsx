@@ -332,7 +332,7 @@ export const AiAssistantPage: React.FC<AiAssistantPageProps> = ({
   ];
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto text-[#F1F5F9]">
+    <div className="space-y-6 animate-in fade-in duration-200 text-[#F1F5F9]">
       {/* Header & Subtitle */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-[#252D38] pb-5">
         <div>

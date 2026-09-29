@@ -124,7 +124,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   };
 
   return (
-    <header className="h-16 bg-[#0F141B]/90 backdrop-blur-md border-b border-[#252D38] px-6 flex items-center justify-between sticky top-0 z-30">
+    <header className="h-16 bg-[#0F141B]/90 backdrop-blur-md border-b border-[#252D38] px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-30 flex-shrink-0">
       <div className="flex items-center gap-2 text-sm">
         <span className="text-[#64748B] font-medium">IMP</span>
         <span className="text-[#252D38]">/</span>

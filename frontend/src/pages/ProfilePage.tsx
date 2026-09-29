@@ -104,7 +104,7 @@ export const ProfilePage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200 max-w-5xl">
+    <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold tracking-tight text-[#F1F5F9] flex items-center gap-2.5">

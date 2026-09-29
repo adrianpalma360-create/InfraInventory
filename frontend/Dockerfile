@@ -25,7 +25,7 @@ RUN npm run build
 # Stage 2: Minimal Production Nginx Runner
 FROM nginx:1.25-alpine AS runner
 
-ARG APP_VERSION=15.0.0
+ARG APP_VERSION=15.1.0
 
 LABEL org.opencontainers.image.title="IMP Frontend" \
       org.opencontainers.image.description="Modern React SPA Frontend for IMP - Infrastructure Management Platform" \

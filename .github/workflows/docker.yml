@@ -1,4 +1,5 @@
 name: CI/CD - Build & Publish Docker Images to GHCR
+run-name: ${{ startsWith(github.ref, 'refs/tags/v') && format('InfraInventory {0}', github.ref_name) || format('CI - {0}', github.ref_name) }}
 
 on:
   push:

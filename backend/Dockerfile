@@ -23,7 +23,7 @@ RUN npm run build
 # Stage 2: Minimal Production Runtime
 FROM node:20-alpine AS runner
 
-ARG APP_VERSION=15.0.0
+ARG APP_VERSION=15.1.0
 
 LABEL org.opencontainers.image.title="IMP Backend" \
       org.opencontainers.image.description="Fastify & Prisma REST/WebSocket API for IMP - Infrastructure Management Platform" \
